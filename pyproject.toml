@@ -1,0 +1,69 @@
+[tool.poetry]
+name = "pdfje"
+version = "0.0.1"
+description = "Tiny PDF writer"
+authors = ["Arie Bovenberg <a.c.bovenberg@gmail.com>"]
+license = "MIT"
+classifiers = [
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+packages = [
+    { include = "pdfje", from = "src" },
+]
+readme = "README.rst"
+include = ["CHANGELOG.rst", "README.rst"]
+repository = "https://github.com/ariebovenberg/pdfje"
+keywords = [
+    "api-wrapper",
+    "http",
+    "async",
+    "graphql",
+    "rest",
+]
+
+[tool.poetry.dependencies]
+python = "^3.7,<4.0"
+importlib-metadata = {version = ">=1,<5", python = "<3.8"}
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.0.1"
+pytest-cov = "^4.0.0"
+
+[tool.poetry.group.typecheck.dependencies]
+mypy = "^0.982"
+
+[tool.poetry.group.linting.dependencies]
+black = "^22.10"
+flake8 = "^5.0.4"
+isort = "^5.7.0"
+
+[tool.poetry.group.dev.dependencies]
+tox = "^3.26"
+
+[tool.black]
+line-length = 79
+include = '\.pyi?$'
+exclude = '''
+/(
+  \.eggs
+| \.git
+| \.mypy_cache
+| \.tox
+| \.venv
+| _build
+| build
+| dist
+)/
+'''
+
+[tool.isort]
+line_length = 79
+profile = 'black'
+
+[build-system]
+requires = ["poetry-core>=1.1.0"]
+build-backend = "poetry.core.masonry.api"
