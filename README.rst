@@ -18,7 +18,7 @@
 
 -----
 
-  **PDF·je** *(noun)* Dutch for "small PDF"
+  **PDF·je** *(noun)* Dutch for 'small PDF'
 
 Tiny library for writing simple PDFs. Experimental.
 
@@ -29,17 +29,22 @@ Why?
 ----
 
 The most popular libraries for writing PDFs are quite old and inspired by Java and PHP.
-This library is an attempt to create a modern Pythonic library with a more declarative API.
+*PDFje* aims to be a modern, Pythonic library with a more declarative API.
 
-.. How does it work?
-.. -----------------
+How does it work?
+-----------------
 
-.. .. code-block:: python
+.. code-block:: python
 
-..   >>> import pdfje as pdf
-..   >>> pdf.Document().write('hello.pdf')
+  >>> from pdfje import Document, Page, Text
+  >>> pdf.Document([
+  ...     Page([Text("Hello", at=(200, 700)), Text("World", at=(300, 670))]),
+  ...     Page(),
+  ...     Page([Text("This is the last page!", at=(300, 600))]),
+  ...
+  ... ]).to_path('hello.pdf')
 
-.. See `the docs <https://pdfje.rtfd.io>`_ for a complete overview.
+See `the docs <https://pdfje.rtfd.io>`_ for a complete overview.
 
 Installation
 ------------
