@@ -29,7 +29,7 @@ Why?
 ----
 
 The most popular libraries for writing PDFs are quite old and inspired by Java and PHP.
-*PDFje* aims to be a modern, Pythonic library with a more declarative API.
+*PDFje* is a modern, Pythonic library with a more declarative API.
 
 How does it work?
 -----------------
@@ -41,7 +41,6 @@ How does it work?
   ...     Page([Text("Hello", at=(200, 700)), Text("World", at=(300, 670))]),
   ...     Page(),
   ...     Page([Text("This is the last page!", at=(300, 600))]),
-  ...
   ... ]).to_path('hello.pdf')
 
 See `the docs <https://pdfje.rtfd.io>`_ for a complete overview.
