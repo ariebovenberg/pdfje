@@ -18,7 +18,7 @@
 
 -----
 
-  **PDF·je** *(noun)* Dutch for 'small PDF'
+  **PDF·je** [PDF·yuh] *(noun)* Dutch for 'small PDF'
 
 Tiny library for writing simple PDFs. Experimental.
 
