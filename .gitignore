@@ -135,3 +135,4 @@ Temporary Items
 .envrc
 *.csv
 *.pdf
+output/

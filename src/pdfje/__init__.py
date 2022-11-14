@@ -1,164 +1,180 @@
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
-from typing import Iterable, Iterator, Sequence
+from typing import Iterable, Iterator, Literal, Mapping, NamedTuple, Sequence
 
-from . import raw
+from . import atoms, fonts
+from .common import add_slots, flatten
+from .fonts import Font
 
-__all__ = ["Document", "Page", "Text"]
+__all__ = ["Document", "Page", "Text", "Font"]
 
 OBJ_ID_PAGETREE = 2
 OBJ_ID_RESOURCES = 3
 OBJ_ID_FIRST_PAGE = 4
 A4_SIZE_IN_PT = (595, 842)
-DEFAULT_FONT_NAME = "F1"
-DEFAULT_FONT_SIZE = 14
-MAX_STRING_LENGTH = 65535
-
-PageIndex = int
-"""Zero-indexed page number"""
+Rotation = Literal[0, 90, 180, 270]
 
 
-@dataclass(frozen=True)
-class Point:
+_PageIndex = int  # zero-indexed page number
+_PositiveInt = int
+_FontMap = Mapping[Font, fonts.IncludedFont]
+
+helvetica = fonts.Builtin(b"Helvetica")
+times_roman = fonts.Builtin(b"Times-Roman")
+courier = fonts.Builtin(b"Courier")
+symbol = fonts.Builtin(b"Symbol")
+zapf_dingbats = fonts.Builtin(b"ZapfDingbats")
+
+
+class Point(NamedTuple):
     x: float
     y: float
 
-    def __iter__(self) -> Iterator[float]:
-        yield self.x
-        yield self.y
 
-
+@add_slots
 @dataclass(frozen=True, init=False)
 class Text:
+    """text positioned on a page"""
+
     content: str
     at: Point
+    font: Font
+    size: _PositiveInt
 
-    def __init__(self, content: str, at: Point | tuple[float, float]):
+    def __init__(
+        self,
+        content: str,
+        at: Point | tuple[float, float] = Point(0, 0),
+        font: Font = helvetica,
+        size: _PositiveInt = 12,
+    ):
         object.__setattr__(self, "content", content)
         object.__setattr__(self, "at", Point(*at))
+        object.__setattr__(self, "font", font)
+        object.__setattr__(self, "size", size)
 
-    def __post_init__(self) -> None:
-        try:
-            self.content.encode("ascii")
-        except UnicodeEncodeError:
-            raise NotImplementedError("only ASCII for now")
-
-        assert len(self.content) < MAX_STRING_LENGTH, "text too long!"
-
-    def to_stream(self) -> bytes:
-        return f"""\
-  BT
-    /{DEFAULT_FONT_NAME} {DEFAULT_FONT_SIZE} Tf
-    {self.at.x} {self.at.y} Td
-    ({self.content}) Tj
-  ET
-""".encode(
-            "ascii"
+    def to_stream(self, font: fonts.IncludedFont) -> bytes:
+        return b"BT\n/%b %i Tf\n%i %i Td\n%b Tj\nET" % (
+            font.id,
+            self.size,
+            self.at.x,
+            self.at.y,
+            b"".join(atoms.LiteralString(font.encode(self.content)).write()),
         )
 
 
+@add_slots
 @dataclass(frozen=True)
 class Page:
+    """a page within a PDF document"""
+
     content: Sequence[Text] = ()
+    rotate: Rotation = 0
 
-    def raw_objects(
-        self, index: PageIndex
-    ) -> Iterable[tuple[raw.ObjectID, raw.Object]]:
-        return [
-            (index, self.raw_metadata(index + 1)),
-            (index + 1, self.raw_content()),
-        ]
+    def to_atoms(
+        self, i: _PageIndex, fm: _FontMap
+    ) -> Iterable[atoms.ObjectWithID]:
+        yield i, self._raw_metadata(i + 1)
+        yield i + 1, self._raw_content(fm)
 
-    def raw_metadata(self, content: raw.ObjectID, /) -> raw.Dictionary:
-        return raw.Dictionary(
-            {
-                "Type": raw.Name("Page"),
-                "Parent": raw.Ref(OBJ_ID_PAGETREE),
-                "Contents": raw.Ref(content),
-                "Resources": raw.Ref(OBJ_ID_RESOURCES),
-            },
+    def _raw_metadata(self, content: atoms.ObjectID) -> atoms.Dictionary:
+        return atoms.Dictionary(
+            (b"Type", atoms.Name(b"Page")),
+            (b"Parent", atoms.Ref(OBJ_ID_PAGETREE)),
+            (b"Contents", atoms.Ref(content)),
+            (b"Resources", atoms.Ref(OBJ_ID_RESOURCES)),
+            (b"Rotate", atoms.Int(self.rotate)),
         )
 
-    def raw_content(self) -> raw.Stream:
-        content = b"\n".join(item.to_stream() for item in self.content)
-        return raw.Stream({"Length": raw.Int(len(content) - 1)}, content)
+    def _raw_content(self, fm: _FontMap) -> atoms.Stream:
+        return atoms.Stream(
+            b"\n".join(t.to_stream(fm[t.font]) for t in self.content)
+        )
 
 
-def id_for_page(i: PageIndex) -> raw.ObjectID:
-    # For now, we represent pages with two objects:
+def _id_for_page(i: _PageIndex) -> atoms.ObjectID:
+    # We represent pages with two objects:
     # the metadata and the content.
     # Therefore, object ID is enumerated twice as fast as page number.
     return (i * 2) + OBJ_ID_FIRST_PAGE
 
 
+@add_slots
 @dataclass(frozen=True)
 class Document:
-    pages: Sequence[Page]
+    """a PDF Document
+
+    .. warning::
+
+       A document must contain at least one page to be valid
+    """
+
+    pages: Sequence[Page] = (Page(),)
 
     def __post_init__(self) -> None:
         assert self.pages, "at least one page required"
 
-    def to_path(self, p: os.PathLike, /) -> None:
-        page_ids = range(OBJ_ID_FIRST_PAGE, id_for_page(len(self.pages)), 2)
-        headers: list[tuple[raw.ObjectID, raw.Object]] = [
-            (
-                raw.OBJ_ID_CATALOG,
-                raw.Dictionary(
-                    {
-                        "Type": raw.Name("Catalog"),
-                        "Pages": raw.Ref(OBJ_ID_PAGETREE),
-                    }
+    def write(self) -> Iterator[bytes]:
+        page_id_limit = _id_for_page(len(self.pages))
+        page_ids = range(OBJ_ID_FIRST_PAGE, page_id_limit, 2)
+        fonts_used = {
+            u.font: u
+            for u in fonts.usage(
+                ((t.content, t.font) for p in self.pages for t in p.content),
+                first_id=page_id_limit,
+            )
+        }
+        return atoms.write(
+            chain(
+                _write_headers(page_ids, fonts_used.values()),
+                flatten(
+                    page.to_atoms(i, fonts_used)
+                    for i, page in zip(page_ids, self.pages)
                 ),
-            ),
-            (
-                OBJ_ID_PAGETREE,
-                raw.Dictionary(
-                    {
-                        "Type": raw.Name("Pages"),
-                        "Kids": raw.Array(
-                            tuple(
-                                map(
-                                    raw.Ref,
-                                    page_ids,
-                                )
-                            )
-                        ),
-                        "Count": raw.Int(len(self.pages)),
-                        "MediaBox": raw.Array(
-                            tuple(map(raw.Int, [0, 0, *A4_SIZE_IN_PT]))
-                        ),
-                    }
-                ),
-            ),
-            (
-                OBJ_ID_RESOURCES,
-                raw.Dictionary(
-                    {
-                        "Font": raw.Dictionary(
-                            {
-                                DEFAULT_FONT_NAME: raw.Dictionary(
-                                    {
-                                        "Type": raw.Name("Font"),
-                                        "Subtype": raw.Name("Type1"),
-                                        "BaseFont": raw.Name("Times-Roman"),
-                                    }
-                                ),
-                            }
-                        ),
-                    }
-                ),
-            ),
-        ]
-        Path(p).write_bytes(
-            raw.write(
-                chain(
-                    headers,
-                    chain.from_iterable(
-                        page.raw_objects(i)
-                        for i, page in zip(page_ids, self.pages)
-                    ),
-                )
+                flatten(f.to_atoms() for f in fonts_used.values()),
             )
         )
+
+    def to_path(self, p: os.PathLike) -> None:
+        with Path(p).open("wb") as wfile:
+            wfile.writelines(self.write())
+
+
+_CATALOG_OBJ = (
+    atoms.OBJ_ID_CATALOG,
+    atoms.Dictionary(
+        (b"Type", atoms.Name(b"Catalog")),
+        (b"Pages", atoms.Ref(OBJ_ID_PAGETREE)),
+    ),
+)
+
+
+def _write_headers(
+    pages: Sequence[atoms.ObjectID], fs: Iterable[fonts.IncludedFont]
+) -> Iterable[atoms.ObjectWithID]:
+    yield _CATALOG_OBJ
+    yield (
+        OBJ_ID_PAGETREE,
+        atoms.Dictionary(
+            (b"Type", atoms.Name(b"Pages")),
+            (b"Kids", atoms.Array(map(atoms.Ref, pages))),
+            (b"Count", atoms.Int(len(pages))),
+            (
+                b"MediaBox",
+                atoms.Array(map(atoms.Int, [0, 0, *A4_SIZE_IN_PT])),
+            ),
+        ),
+    )
+    yield (
+        OBJ_ID_RESOURCES,
+        atoms.Dictionary(
+            (
+                b"Font",
+                atoms.Dictionary(*((u.id, u.to_resource()) for u in fs)),
+            ),
+        ),
+    )
