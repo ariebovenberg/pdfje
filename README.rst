@@ -20,16 +20,18 @@
 
   **PDF·je** [PDF·yuh] *(noun)* Dutch for 'small PDF'
 
-Tiny library for writing simple PDFs. Experimental.
+Tiny library for writing simple PDFs.
 
 Currently under development.
+The API may change significantly until the 1.x release.
 Leave a ⭐️ on GitHub if you're interested how this develops!
 
 Why?
 ----
 
-The most popular libraries for writing PDFs are quite old and inspired by Java and PHP.
-*PDFje* is a modern, Pythonic library with a more declarative API.
+The most popular Python libraries for writing PDFs are quite old
+and inspired by Java and PHP. **PDFje** is a modern, Pythonic library with
+a more declarative API.
 
 How does it work?
 -----------------
@@ -37,7 +39,7 @@ How does it work?
 .. code-block:: python
 
   >>> from pdfje import Document, Page, Text
-  >>> pdf.Document([
+  >>> Document([
   ...     Page([Text("Hello", at=(200, 700)), Text("World", at=(300, 670))]),
   ...     Page(),
   ...     Page([Text("This is the last page!", at=(300, 600))]),
@@ -53,3 +55,9 @@ It's available on PyPI.
 .. code-block:: bash
 
   pip install pdfje
+
+Development
+-----------
+
+- Install dependencies with ``poetry install``.
+- To write output files during tests, use ``pytest --output-path=<outpur-dir>``

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pdfje"
-version = "0.1.0"
+version = "0.2.0"
 description = "Tiny PDF writer"
 authors = ["Arie Bovenberg <a.c.bovenberg@gmail.com>"]
 license = "MIT"
@@ -14,24 +14,21 @@ classifiers = [
 packages = [
     { include = "pdfje", from = "src" },
 ]
+documentation = "https://pdfje.readthedocs.io"
 readme = "README.rst"
 include = ["CHANGELOG.rst", "README.rst"]
 repository = "https://github.com/ariebovenberg/pdfje"
-keywords = [
-    "api-wrapper",
-    "http",
-    "async",
-    "graphql",
-    "rest",
-]
+keywords = ["pdf"]
 
 [tool.poetry.dependencies]
 python = "^3.7,<4.0"
 importlib-metadata = {version = ">=1,<5", python = "<3.8"}
+fonttools = "^4.38.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.0.1"
 pytest-cov = "^4.0.0"
+pytest-benchmark = "^4.0.0"
 
 [tool.poetry.group.typecheck.dependencies]
 mypy = "^0.982"
@@ -40,6 +37,7 @@ mypy = "^0.982"
 black = "^22.10"
 flake8 = "^5.0.4"
 isort = "^5.7.0"
+slotscheck = "^0.16.1"
 
 [tool.poetry.group.dev.dependencies]
 tox = "^3.26"
@@ -63,6 +61,11 @@ exclude = '''
 [tool.isort]
 line_length = 79
 profile = 'black'
+
+[tool.slotscheck]
+strict-imports = true
+require-superclass = true
+require-subclass = true
 
 [build-system]
 requires = ["poetry-core>=1.1.0"]
