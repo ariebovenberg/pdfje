@@ -7,14 +7,24 @@ Documents and pages
 PDF documents consist of pages, which may have graphical context (e.g. text).
 Below shows an example of creating a document and writing it to a file.
 
+You can pass in strings directly to use the default style,
+or use :class:`~pdfje.Text` to add style information.
+
 .. code-block:: python
 
-  >>> from pdfje import Document, Page, Text
-  >>> Document([
-  ...     Page([Text("Hello", at=(200, 700)), Text("World", at=(300, 670))]),
-  ...     Page(),  # empty page
-  ...     Page([Text("This is the last page!", at=(300, 600))]),
-  ... ]).to_path('hello.pdf')
+  from pdfje import Document, Page, Text
+  Document([
+      Page("Hello world!"),
+      Page(),  # empty page
+      Page(["here is", Text("BIG", size=40), "text"]),
+  ]).to_path('hello.pdf')
+
+
+Output targets
+--------------
+
+You can write to paths, files, file-like objects, or a stream.
+See :meth:`pdfje.Document.write` for details.
 
 
 Fonts and unicode
@@ -37,9 +47,9 @@ There are two types of fonts:
 
    .. code-block:: python
 
-      >>> from pdfje import Text, courier, helvetica
-      >>> Text("Hello Helvetica", font=helvetica)
-      >>> Text("Ciao, Courier", font=courier)
+      from pdfje import Text, courier, helvetica
+      Text("Hello Helvetica", font=helvetica)
+      Text("Ciao, Courier", font=courier)
 
    .. warning::
 
@@ -60,9 +70,9 @@ There are two types of fonts:
 
    .. code-block:: python
 
-      >>> from pdfje import Text, Font
-      >>> dejavu = Font.from_path("path/to/DejaVuSansCondensed.ttf")
-      >>> Text("We meet again, DejaVu!", font=dejavu)
+      from pdfje import Text, Font
+      dejavu = Font.from_path("path/to/DejaVuSansCondensed.ttf")
+      Text("We meet again, DejaVu!", font=dejavu)
 
    .. note::
 
