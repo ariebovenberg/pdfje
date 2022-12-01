@@ -1,10 +1,14 @@
 from dataclasses import fields
 from itertools import chain
-from typing import TypeVar
+from typing import Callable, TypeVar
 
+Pt = float
+Inch = float
 flatten = chain.from_iterable
-
 Tclass = TypeVar("Tclass", bound=type)
+
+
+inch: Callable[[Inch], Pt] = (72.0).__mul__
 
 
 # adapted from github.com/ericvsmith/dataclasses

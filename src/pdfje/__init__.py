@@ -1,13 +1,22 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
-from typing import Iterable, Iterator, Literal, Mapping, NamedTuple, Sequence
+from typing import (
+    IO,
+    Generator,
+    Iterable,
+    Iterator,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Sequence,
+    overload,
+)
 
 from . import atoms, fonts
-from .common import add_slots, flatten
+from .common import Pt, add_slots, flatten, inch
 from .fonts import Font
 
 __all__ = ["Document", "Page", "Text", "Font"]
@@ -15,12 +24,12 @@ __all__ = ["Document", "Page", "Text", "Font"]
 OBJ_ID_PAGETREE = 2
 OBJ_ID_RESOURCES = 3
 OBJ_ID_FIRST_PAGE = 4
-A4_SIZE_IN_PT = (595, 842)
+A4_SIZE = (A4_WIDTH, A4_HEIGHT) = (Pt(595), Pt(842))
 Rotation = Literal[0, 90, 180, 270]
-
+DEFAULT_MARGIN = inch(1)
+LEADING_PER_FONTSIZE = 1.4  # ratio of leading space to font size
 
 _PageIndex = int  # zero-indexed page number
-_PositiveInt = int
 _FontMap = Mapping[Font, fonts.IncludedFont]
 
 helvetica = fonts.Builtin(b"Helvetica")
@@ -36,50 +45,57 @@ class Point(NamedTuple):
 
 
 @add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(frozen=True)
 class Text:
     """text positioned on a page"""
 
     content: str
-    at: Point
-    font: Font
-    size: _PositiveInt
+    font: Font = helvetica
+    size: float = 12
 
-    def __init__(
-        self,
-        content: str,
-        at: Point | tuple[float, float] = Point(0, 0),
-        font: Font = helvetica,
-        size: _PositiveInt = 12,
-    ):
-        object.__setattr__(self, "content", content)
-        object.__setattr__(self, "at", Point(*at))
-        object.__setattr__(self, "font", font)
-        object.__setattr__(self, "size", size)
-
-    def to_stream(self, font: fonts.IncludedFont) -> bytes:
-        return b"BT\n/%b %i Tf\n%i %i Td\n%b Tj\nET" % (
+    def render(
+        self, font: fonts.IncludedFont, y: Pt
+    ) -> Generator[bytes, None, Pt]:
+        leading = LEADING_PER_FONTSIZE * self.size
+        yield b"BT\n/%b %g Tf\n%g %g Td\n%g TL\n" % (
             font.id,
             self.size,
-            self.at.x,
-            self.at.y,
-            b"".join(atoms.LiteralString(font.encode(self.content)).write()),
+            DEFAULT_MARGIN,
+            y,
+            leading,
         )
+        lines = self.content.splitlines()
+        for ln in lines:
+            yield from atoms.LiteralString(font.encode(ln)).write()
+            yield b" '\n"
+        yield b"ET\n"
+
+        return len(lines) * leading
 
 
 @add_slots
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class Page:
-    """a page within a PDF document"""
+    """a page within a PDF document."""
 
-    content: Sequence[Text] = ()
-    rotate: Rotation = 0
+    content: Iterable[Text]
+    rotate: Rotation
+
+    def __init__(
+        self, content: str | Iterable[str | Text] = (), rotate: Rotation = 0
+    ) -> None:
+        if isinstance(content, str):
+            content = (Text(content),)
+        else:
+            content = [Text(s) if isinstance(s, str) else s for s in content]
+        object.__setattr__(self, "content", content)
+        object.__setattr__(self, "rotate", rotate)
 
     def to_atoms(
         self, i: _PageIndex, fm: _FontMap
     ) -> Iterable[atoms.ObjectWithID]:
         yield i, self._raw_metadata(i + 1)
-        yield i + 1, self._raw_content(fm)
+        yield i + 1, atoms.Stream(b"".join(self._raw_content(fm)))
 
     def _raw_metadata(self, content: atoms.ObjectID) -> atoms.Dictionary:
         return atoms.Dictionary(
@@ -90,10 +106,10 @@ class Page:
             (b"Rotate", atoms.Int(self.rotate)),
         )
 
-    def _raw_content(self, fm: _FontMap) -> atoms.Stream:
-        return atoms.Stream(
-            b"\n".join(t.to_stream(fm[t.font]) for t in self.content)
-        )
+    def _raw_content(self, fm: _FontMap) -> Iterator[bytes]:
+        y = A4_HEIGHT - DEFAULT_MARGIN
+        for txt in self.content:
+            y -= yield from txt.render(fm[txt.font], y)
 
 
 def _id_for_page(i: _PageIndex) -> atoms.ObjectID:
@@ -104,21 +120,78 @@ def _id_for_page(i: _PageIndex) -> atoms.ObjectID:
 
 
 @add_slots
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class Document:
-    """a PDF Document
+    """a PDF Document according to PDF spec 1.7 (32000-1:2008).
 
-    .. warning::
+    There are several ways to construct a document:
+
+    >>> Document()  # the minimal PDF -- one empty page
+    >>> Document("hello world")  # one-page document with given text
+    >>> Document([  # document with explicit pages
+    ...     Page(),
+    ...     Page(),
+    ... ])
+
+    .. note::
 
        A document must contain at least one page to be valid
     """
 
-    pages: Sequence[Page] = (Page(),)
+    pages: Sequence[Page]
 
-    def __post_init__(self) -> None:
-        assert self.pages, "at least one page required"
+    def __init__(self, content: Sequence[Page] | str | None = None) -> None:
+        if content is None:
+            pages: Sequence[Page] = (Page(),)
+        elif isinstance(content, str):
+            pages = (Page([Text(content)]),)
+        else:  # sequence of pages
+            assert content, "at least one page required"
+            pages = content
 
+        object.__setattr__(self, "pages", pages)
+
+    @overload
     def write(self) -> Iterator[bytes]:
+        ...
+
+    @overload
+    def write(self, target: Path | str | IO[bytes]) -> None:
+        ...
+
+    def write(  # type: ignore[return]
+        self, target: Path | str | IO[bytes] | None = None
+    ) -> Iterator[bytes] | None:
+        """Write the document to a given target. If no target is given,
+        outputs the binary PDF content iteratively.
+
+        String or :class:`~pathlib.Path` target:
+
+        >>> doc.write("myfolder/foo.pdf")
+        >>> doc.write(Path.home() / "documents/foo.pdf")
+
+        Files and file-like objects:
+
+        >>> with open("my/file.pdf", 'wb') as f:
+        ...     doc.write(f)
+        >>> doc.write(b:= BytesIO())
+
+        Iterator output is useful for streaming PDF contents. Below is
+        an example of an HTTP request using the ``httpx`` library.
+
+        >>> httpx.post("https://mysite.foo/upload", content=doc.write(),
+        ...            headers={"Content-Type": "application/pdf"})
+        """
+        if target is None:
+            return self._write_iter()
+        elif isinstance(target, str):
+            self._write_to_path(Path(target))
+        elif isinstance(target, Path):
+            self._write_to_path(target)
+        else:  # i.e. IO[bytes]
+            target.writelines(self._write_iter())
+
+    def _write_iter(self) -> Iterator[bytes]:
         page_id_limit = _id_for_page(len(self.pages))
         page_ids = range(OBJ_ID_FIRST_PAGE, page_id_limit, 2)
         fonts_used = {
@@ -139,7 +212,7 @@ class Document:
             )
         )
 
-    def to_path(self, p: os.PathLike) -> None:
+    def _write_to_path(self, p: Path) -> None:
         with Path(p).open("wb") as wfile:
             wfile.writelines(self.write())
 
@@ -165,7 +238,7 @@ def _write_headers(
             (b"Count", atoms.Int(len(pages))),
             (
                 b"MediaBox",
-                atoms.Array(map(atoms.Int, [0, 0, *A4_SIZE_IN_PT])),
+                atoms.Array(map(atoms.Real, (0, 0, *A4_SIZE))),
             ),
         ),
     )

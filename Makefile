@@ -41,3 +41,8 @@ test: check pytest
 docs:
 	@touch docs/api.rst
 	make -C docs/ html
+
+publish:
+	rm -rf dist/*
+	poetry build
+	twine upload dist/*

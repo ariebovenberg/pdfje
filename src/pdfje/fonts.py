@@ -87,9 +87,13 @@ class TTF(Font):
 
 
 @add_slots
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Builtin(Font):
     name: ASCII
+
+    def __repr__(self) -> str:
+        cls = type(self)
+        return f"{cls.__module__}.{cls.__name__}({self.name.decode()})"
 
 
 class IncludedFont(abc.ABC):
