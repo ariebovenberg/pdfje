@@ -49,12 +49,14 @@ but you can of course do more:
 
   from pdfje import Page, Text, Font
 
-  myfont = Font.from_path('path/to/MyFont.ttf')
   Document([
       Page("""Simple is better than complex.
               Complex is better than complicated."""),
       Page(),
-      Page(Text("This text is bigger and fancier!", font=myfont, size=20))
+      Page(["The following text is",
+            Text("bigger and fancier!",
+                 font=Font.from_path('path/to/MyFont.ttf'),
+                 size=20)])
   ]).write('hello.pdf')
 
 
