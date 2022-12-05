@@ -1,6 +1,14 @@
 Changelog
 =========
 
+0.4.0 (202?-??-??)
+------------------
+
+**Added**
+
+- 📏 Horizontal rule element
+- ✂️ Automatic line breaks to keep text within margins
+
 0.3.0 (2022-12-02)
 ------------------
 

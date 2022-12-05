@@ -1,76 +1,170 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from itertools import chain
-from pathlib import Path
+from pathlib import Path as FilePath
 from typing import (
     IO,
+    Callable,
     Generator,
     Iterable,
     Iterator,
     Literal,
     Mapping,
-    NamedTuple,
     Sequence,
     overload,
 )
 
 from . import atoms, fonts
-from .common import Pt, add_slots, flatten, inch
-from .fonts import Font
+from .common import Pt, add_slots, flatten, inch, pipe
+from .fonts import (
+    TEXTSPACE_TO_GLYPHSPACE,
+    Font,
+    GlyphPt,
+    Ordinal,
+    courier,
+    helvetica,
+    symbol,
+    times_roman,
+    zapf_dingbats,
+)
 
-__all__ = ["Document", "Page", "Text", "Font"]
+__all__ = [
+    "Document",
+    "Page",
+    "Text",
+    "Font",
+    "courier",
+    "times_roman",
+    "symbol",
+    "zapf_dingbats",
+]
 
-OBJ_ID_PAGETREE = 2
-OBJ_ID_RESOURCES = 3
-OBJ_ID_FIRST_PAGE = 4
+OBJ_ID_PAGETREE: atoms.ObjectID = 2
+OBJ_ID_RESOURCES: atoms.ObjectID = 3
+OBJ_ID_FIRST_PAGE: atoms.ObjectID = 4
 A4_SIZE = (A4_WIDTH, A4_HEIGHT) = (Pt(595), Pt(842))
-Rotation = Literal[0, 90, 180, 270]
-DEFAULT_MARGIN = inch(1)
+DEFAULT_MARGIN: Pt = inch(1)
 LEADING_PER_FONTSIZE = 1.4  # ratio of leading space to font size
 
+Rotation = Literal[0, 90, 180, 270]
 _PageIndex = int  # zero-indexed page number
 _FontMap = Mapping[Font, fonts.IncludedFont]
-
-helvetica = fonts.Builtin(b"Helvetica")
-times_roman = fonts.Builtin(b"Times-Roman")
-courier = fonts.Builtin(b"Courier")
-symbol = fonts.Builtin(b"Symbol")
-zapf_dingbats = fonts.Builtin(b"ZapfDingbats")
-
-
-class Point(NamedTuple):
-    x: float
-    y: float
+_SPACE: Ordinal = ord(" ")
 
 
 @add_slots
 @dataclass(frozen=True)
+class Style:
+    font: Font = helvetica
+    fontsize: Pt = 12
+    # TODO: other things like color etc.
+
+
+@add_slots
+@dataclass(frozen=True, init=False)
 class Text:
     """text positioned on a page"""
 
     content: str
-    font: Font = helvetica
-    size: float = 12
+    style: Style = Style()
+
+    # TODO: determine whether this API is nice or terrible
+    def __init__(self, content: str, style: Style | Font = Style()) -> None:
+        if isinstance(style, Font):
+            style = Style(style)
+        object.__setattr__(self, "content", content)
+        object.__setattr__(self, "style", style)
 
     def render(
-        self, font: fonts.IncludedFont, y: Pt
+        self,
+        font: fonts.IncludedFont,
+        y: Pt,
+        maxwidth: Pt,
     ) -> Generator[bytes, None, Pt]:
-        leading = LEADING_PER_FONTSIZE * self.size
+        size = self.style.fontsize
+        leading = LEADING_PER_FONTSIZE * size
         yield b"BT\n/%b %g Tf\n%g %g Td\n%g TL\n" % (
             font.id,
-            self.size,
+            size,
             DEFAULT_MARGIN,
             y,
             leading,
         )
-        lines = self.content.splitlines()
-        for ln in lines:
+        num_lines = 0
+        for ln in flatten(
+            map(
+                partial(
+                    add_linebreaks,
+                    maxwidth,
+                    partial(_width, font.width, size),
+                    font.width(_SPACE) / TEXTSPACE_TO_GLYPHSPACE * size,
+                ),
+                self.content.splitlines(),
+            )
+        ):
             yield from atoms.LiteralString(font.encode(ln)).write()
             yield b" '\n"
+            num_lines += 1
         yield b"ET\n"
 
-        return len(lines) * leading
+        return num_lines * leading
+
+
+def _width(charwidth: Callable[[Ordinal], GlyphPt], size: float, s: str) -> Pt:
+    return sum(map(pipe(ord, charwidth), s)) / TEXTSPACE_TO_GLYPHSPACE * size
+
+
+def add_linebreaks(
+    maxwidth: Pt,
+    calcwidth: Callable[[str], Pt],
+    w_space: Pt,
+    s: str,
+) -> Iterator[str]:
+    # TODO: handling of other unicode whitespace; dashes
+    space_left = maxwidth
+    buffer = []
+    ws = []
+    for chunk in s.split():
+        w = calcwidth(chunk)
+        print(w)
+        if w < space_left:
+            buffer.append(chunk)
+            ws.append(w)
+            ws.append(w_space)
+            space_left -= w
+            space_left -= w_space
+        else:
+            yield " ".join(buffer)
+            buffer = [chunk]
+            # TODO: handle chunks larger than margin size
+            space_left = maxwidth - w
+
+    yield " ".join(buffer)
+
+
+@add_slots
+@dataclass(frozen=True)
+class Rule:
+    """A horizontal rule"""
+
+    style: Style = Style()
+
+    def render(
+        self,
+        font: fonts.IncludedFont,
+        y: Pt,
+        maxwidth: Pt,
+    ) -> Generator[bytes, None, Pt]:
+        height = self.style.fontsize
+        yield b"%g %g m %g %g l h S\n" % (
+            DEFAULT_MARGIN,
+            y - height / 2,
+            DEFAULT_MARGIN + maxwidth,
+            y - height / 2,
+        )
+        return height
 
 
 @add_slots
@@ -78,11 +172,13 @@ class Text:
 class Page:
     """a page within a PDF document."""
 
-    content: Iterable[Text]
+    content: Iterable[Text | Rule]
     rotate: Rotation
 
     def __init__(
-        self, content: str | Iterable[str | Text] = (), rotate: Rotation = 0
+        self,
+        content: str | Iterable[str | Text | Rule] = (),
+        rotate: Rotation = 0,
     ) -> None:
         if isinstance(content, str):
             content = (Text(content),)
@@ -109,7 +205,9 @@ class Page:
     def _raw_content(self, fm: _FontMap) -> Iterator[bytes]:
         y = A4_HEIGHT - DEFAULT_MARGIN
         for txt in self.content:
-            y -= yield from txt.render(fm[txt.font], y)
+            y -= yield from txt.render(
+                fm[txt.style.font], y, A4_WIDTH - (DEFAULT_MARGIN * 2)
+            )
 
 
 def _id_for_page(i: _PageIndex) -> atoms.ObjectID:
@@ -156,11 +254,11 @@ class Document:
         ...
 
     @overload
-    def write(self, target: Path | str | IO[bytes]) -> None:
+    def write(self, target: FilePath | str | IO[bytes]) -> None:
         ...
 
     def write(  # type: ignore[return]
-        self, target: Path | str | IO[bytes] | None = None
+        self, target: FilePath | str | IO[bytes] | None = None
     ) -> Iterator[bytes] | None:
         """Write the document to a given target. If no target is given,
         outputs the binary PDF content iteratively.
@@ -185,8 +283,8 @@ class Document:
         if target is None:
             return self._write_iter()
         elif isinstance(target, str):
-            self._write_to_path(Path(target))
-        elif isinstance(target, Path):
+            self._write_to_path(FilePath(target))
+        elif isinstance(target, FilePath):
             self._write_to_path(target)
         else:  # i.e. IO[bytes]
             target.writelines(self._write_iter())
@@ -197,7 +295,12 @@ class Document:
         fonts_used = {
             u.font: u
             for u in fonts.usage(
-                ((t.content, t.font) for p in self.pages for t in p.content),
+                (
+                    (t.content, t.style.font)
+                    for p in self.pages
+                    for t in p.content
+                    if isinstance(t, Text)
+                ),
                 first_id=page_id_limit,
             )
         }
@@ -212,8 +315,8 @@ class Document:
             )
         )
 
-    def _write_to_path(self, p: Path) -> None:
-        with Path(p).open("wb") as wfile:
+    def _write_to_path(self, p: FilePath) -> None:
+        with FilePath(p).open("wb") as wfile:
             wfile.writelines(self.write())
 
 

@@ -5,7 +5,13 @@ from pdfje.fonts import EmbeddedSubset, utf16be_hex
 
 def _makefont(cidmap) -> EmbeddedSubset:
     return EmbeddedSubset(
-        b"F0", 0, NotImplemented, NotImplemented, cidmap, NotImplemented
+        b"F0",
+        0,
+        NotImplemented,
+        NotImplemented,
+        NotImplemented,
+        cidmap,
+        NotImplemented,
     )
 
 
