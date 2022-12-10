@@ -9,6 +9,10 @@ Changelog
 - 📏 Horizontal rule element
 - ✂️ Automatic line breaks to keep text within margins
 
+**Performance**
+
+- ⛳️ Document pages and fonts are now written in one efficient pass
+
 0.3.0 (2022-12-02)
 ------------------
 

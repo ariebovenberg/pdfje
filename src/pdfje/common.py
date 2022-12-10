@@ -1,14 +1,47 @@
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from itertools import chain
-from typing import Any, Callable, TypeVar, overload
+from typing import (
+    Any,
+    Callable,
+    Generator,
+    Generic,
+    Iterator,
+    Mapping,
+    Protocol,
+    TypeVar,
+    overload,
+)
 
 Pt = float
 Inch = float
-flatten = chain.from_iterable
+RGB = tuple[float, float, float]
+
 Tclass = TypeVar("Tclass", bound=type)
+T = TypeVar("T")
+U = TypeVar("U")
 
-
+flatten = chain.from_iterable
 inch: Callable[[Inch], Pt] = (72.0).__mul__
+
+
+@dataclass(frozen=True)
+class dictget(Generic[T, U]):
+    _map: Mapping[T, U]
+    default: U
+
+    def __call__(self, k: T) -> U:
+        try:
+            return self._map[k]
+        except KeyError:
+            return self.default
+
+
+def has_next(it: Iterator[T]) -> tuple[Iterator[T], bool]:
+    try:
+        next_item = next(it)
+    except StopIteration:
+        return it, False
+    return chain((next_item,), it), True
 
 
 # adapted from github.com/ericvsmith/dataclasses
@@ -32,6 +65,13 @@ def add_slots(cls: Tclass) -> Tclass:  # pragma: no cover
     if qualname is not None:
         cls.__qualname__ = qualname
     return cls
+
+
+@add_slots
+@dataclass(frozen=True)
+class BBox:
+    height: Pt
+    width: Pt
 
 
 # The copious overloads are to enable mypy to
@@ -159,3 +199,14 @@ class __pipe:
         for f in self._functions:
             value = f(value)
         return value
+
+
+T_contra = TypeVar("T_contra", contravariant=True)
+T_co = TypeVar("T_co", covariant=True)
+
+
+# shortcut for Callable[[T_contra], T_co]. Necessary for typing
+# dataclass fields, as Callable is interpreted incorrectly.
+class Func(Protocol[T_contra, T_co]):
+    def __call__(self, __value: T_contra) -> T_co:
+        ...

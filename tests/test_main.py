@@ -2,19 +2,19 @@ from pathlib import Path as FilePath
 
 from pdfje import (
     Document,
-    Font,
     Page,
     Rule,
     Style,
     Text,
+    Typeface,
     courier,
     helvetica,
     times_roman,
 )
 
 HERE = FilePath(__file__).parent
-
 ZALGO = "t̶͈̓̕h̴̩̖͋̈́e̷̛̹ ̴̠͎̋̀p̷̦̔o̴̘͔̓n̸̞̙̐̕y̷̙̠̍ ̶̱̞̃h̶͈̮̅̆ë̸͍̟́̓ ̷̳̜̂c̵̢̡͋o̸̰̫͗̽m̷̨̿̕e̶̛̗̲͆s̸̨̭̐"  # noqa
+DEJAVU = Typeface.from_path(HERE / "resources/DejaVuSansCondensed.ttf")
 
 
 class TestWrite:
@@ -42,10 +42,12 @@ class TestWrite:
 
 def test_empty(outfile):
     Document().write(outfile)
+    assert Document() == Document((Page(),))
 
 
-def test_one_string(outfile):
-    Document(LOREM_IPSUM).write(outfile)
+# def test_one_string(outfile):
+#     Document(LOREM_IPSUM).write(outfile)
+#     assert Document(LOREM_IPSUM) == Document(AutoPage(LOREM_IPSUM))
 
 
 def test_pages(outfile):
@@ -57,7 +59,7 @@ def test_pages(outfile):
                 [
                     "here is",
                     Rule(),
-                    Text("BIG", Style(fontsize=40)),
+                    Text("BIG", Style(size=40)),
                     "text",
                     Rule(),
                 ]
@@ -76,29 +78,32 @@ def test_rotate(outfile):
 
 
 def test_page_textfill(outfile):
-    Document([Page(LOREM_IPSUM)]).write(outfile)
+    Document([Page([LOREM_IPSUM, Text(LOREM_IPSUM, Style(DEJAVU))])]).write(
+        outfile
+    )
 
 
 def test_fonts(outfile):
-    dejavu = Font.from_path(HERE / "resources/DejaVuSansCondensed.ttf")
-    roboto = Font.from_path(HERE / "resources/Roboto.ttf")
+    roboto = Typeface.from_path(HERE / "resources/Roboto.ttf")
     Document(
         [
             Page(
                 [
-                    Text("Cheers, Cour®ier", courier),
-                    Text("Hey hélvetica!", helvetica),
-                    Text("Hí RobotὍ... ", roboto),
-                    Text("Hello 𝌷 agaîn,\nDejaVü!", dejavu),
-                    Text("Good †imes", times_roman),
+                    Text("Cheers, Cour®ier", Style(courier)),
+                    Text("Hey hélvetica!", Style(helvetica)),
+                    Text("Hí RobotὍ... ", Style(roboto)),
+                    Text(
+                        "Hello 𝌷 agaîn,\nDejaVü! Kerning AWAY!", Style(DEJAVU)
+                    ),
+                    Text("Good †imes", Style(times_roman)),
                     Text("(check that the text above can be copied!)"),
                     Text("unknown char (builtin font): ∫"),
-                    Text("unknown char (embedded font): ⟤", dejavu),
-                    Text(f"zalgo: {ZALGO}", dejavu),
-                    Text("zero byte: \x00", dejavu),
+                    Text("unknown char (embedded font): ⟤", Style(DEJAVU)),
+                    Text(f"zalgo: {ZALGO}", Style(DEJAVU)),
+                    Text("zero byte: \x00", Style(DEJAVU)),
                 ]
             )
-        ]
+        ],
     ).write(outfile)
 
 
