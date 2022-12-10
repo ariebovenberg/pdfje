@@ -1,6 +1,8 @@
 import pytest
+from hypothesis import given
+from hypothesis.strategies import binary
 
-from pdfje.atoms import HexString, escape_string, sanitize_name
+from pdfje.atoms import HexString, _escape, sanitize_name
 
 
 @pytest.mark.parametrize(
@@ -30,7 +32,13 @@ def test_sanitize_name(string, expect):
     ],
 )
 def test_escape_string(string, expect):
-    assert escape_string(string) == expect
+    assert _escape(string) == expect
+
+
+@pytest.mark.slow
+@given(binary())
+def test_escape_fuzzing(bytestr):
+    assert len(_escape(bytestr)) >= len(bytestr)
 
 
 @pytest.mark.parametrize(

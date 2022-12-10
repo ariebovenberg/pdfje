@@ -1,11 +1,10 @@
 [tool.poetry]
 name = "pdfje"
-version = "0.3.0"
+version = "0.4.0"
 description = "Tiny PDF writer"
 authors = ["Arie Bovenberg <a.c.bovenberg@gmail.com>"]
 license = "MIT"
 classifiers = [
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -21,26 +20,27 @@ repository = "https://github.com/ariebovenberg/pdfje"
 keywords = ["pdf"]
 
 [tool.poetry.dependencies]
-python = "^3.7,<4.0"
-importlib-metadata = {version = ">=1,<5", python = "<3.8"}
-fonttools = "^4.38.0"
+python = ">=3.8.1,<4.0"
+fonttools = {version="^4.38.0", optional=true}
+
+[tool.poetry.extras]
+fonts = ["fonttools"]
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.0.1"
 pytest-cov = "^4.0.0"
 pytest-benchmark = "^4.0.0"
+hypothesis = "^6.68.2"
 
 [tool.poetry.group.typecheck.dependencies]
-mypy = "^0.982"
+mypy = "^1.0.0"
 
 [tool.poetry.group.linting.dependencies]
-black = "^22.10"
-flake8 = "^5.0.4"
+black = "^23.1"
+flake8 = "^6.0.0"
 isort = "^5.7.0"
 slotscheck = "^0.16.1"
 
-[tool.poetry.group.dev.dependencies]
-tox = "^3.26"
 
 [tool.black]
 line-length = 79
@@ -66,6 +66,7 @@ profile = 'black'
 strict-imports = true
 require-superclass = true
 require-subclass = true
+exclude-modules = "^pdfje\\.vendor.*"
 
 [build-system]
 requires = ["poetry-core>=1.1.0"]

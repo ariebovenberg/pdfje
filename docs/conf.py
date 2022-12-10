@@ -31,6 +31,8 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
+    "sphinx_toolbox.collapse",
+    "sphinx_autodoc_typehints",
 ]
 templates_path = ["_templates"]
 source_suffix = ".rst"
@@ -43,6 +45,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 autodoc_member_order = "bysource"
 html_theme = "furo"
 highlight_language = "python3"
+pygments_style = "default"
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
 }

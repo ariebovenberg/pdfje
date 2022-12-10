@@ -1,13 +1,34 @@
 Changelog
 =========
 
-0.4.0 (202?-??-??)
+0.4.0 (2023-04-10)
 ------------------
+
+A big release with lots of new features and improvements.
+Most importantly, the page layout engine is now complete and
+can be used to create multi-page/column documents.
 
 **Added**
 
+- ✂️  Automatic layout of multi-style text into lines, columns, and pages
+- 🔬 Automatic kerning for supported fonts
+- 🖌️ Support for drawing basic shapes
+- 🎨 Additional text styling options
+- 📦 Make fonttools dependency optional
 - 📏 Horizontal rule element
-- ✂️ Automatic line breaks to keep text within margins
+
+**Documentation**
+
+- 🧑‍🏫 Add a tutorial and examples
+- 📋 Polished docstrings in public API
+
+**Performance**
+
+- ⛳️ Document pages and fonts are now written in one efficient pass
+
+**Breaking**
+
+- 🌅 Drop Python 3.7 support
 
 0.3.0 (2022-12-02)
 ------------------

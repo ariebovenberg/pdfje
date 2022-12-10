@@ -1,5 +1,9 @@
+.. _api:
+
 API reference
 =============
+
+Unless otherwise noted, all classes are immutable.
 
 .. automodule:: pdfje
    :members:

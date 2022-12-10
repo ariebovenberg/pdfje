@@ -6,7 +6,8 @@ Contents
 .. toctree::
    :maxdepth: 2
 
-   guide.rst
+   tutorial.rst
+   examples.rst
    api.rst
 
 
