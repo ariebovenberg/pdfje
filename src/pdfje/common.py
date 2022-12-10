@@ -1,14 +1,53 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, fields
+from functools import wraps
 from itertools import chain
-from typing import Any, Callable, TypeVar, overload
+from operator import itemgetter
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Iterable,
+    Iterator,
+    Mapping,
+    Protocol,
+    TypeVar,
+    no_type_check,
+    overload,
+)
+
+__all__ = [
+    "Pt",
+    "Inch",
+    "XY",
+    "RGB",
+]
 
 Pt = float
 Inch = float
+Char = str  # 1-character string
+
 flatten = chain.from_iterable
-Tclass = TypeVar("Tclass", bound=type)
-
-
 inch: Callable[[Inch], Pt] = (72.0).__mul__
+first = itemgetter(0)
+second = itemgetter(1)
+Ordinal = int  # a unicode code point
+
+Tclass = TypeVar("Tclass", bound=type)
+T = TypeVar("T")
+U = TypeVar("U")
+
+
+def prepend(i: T, it: Iterable[T]) -> Iterator[T]:
+    return chain((i,), it)
+
+
+def always(v: T) -> Callable[..., T]:
+    return lambda *_, **__: v
+
+
+setattr_frozen = object.__setattr__
 
 
 # adapted from github.com/ericvsmith/dataclasses
@@ -16,7 +55,6 @@ inch: Callable[[Inch], Pt] = (72.0).__mul__
 def add_slots(cls: Tclass) -> Tclass:  # pragma: no cover
     if "__slots__" in cls.__dict__:
         raise TypeError(f"{cls.__name__} already specifies __slots__")
-
     cls_dict = dict(cls.__dict__)
     field_names = tuple(f.name for f in fields(cls))
     cls_dict["__slots__"] = field_names
@@ -32,6 +70,100 @@ def add_slots(cls: Tclass) -> Tclass:  # pragma: no cover
     if qualname is not None:
         cls.__qualname__ = qualname
     return cls
+
+
+@add_slots
+@dataclass(frozen=True)
+class XY:
+    x: float
+    y: float
+
+    def astuple(self) -> tuple[float, float]:
+        return (self.x, self.y)
+
+    @staticmethod
+    def parse(v: XY | tuple[float, float], /) -> XY:
+        return XY(*v) if isinstance(v, tuple) else v
+
+    def __iter__(self) -> Iterator[float]:
+        yield self.x
+        yield self.y
+
+
+@add_slots
+@dataclass(frozen=True, repr=False)
+class RGB:
+    red: float
+    green: float
+    blue: float
+
+    def astuple(self) -> tuple[float, float, float]:
+        return (self.red, self.green, self.blue)
+
+    def __repr__(self) -> str:
+        return f"RGB({self.red}, {self.green}, {self.blue})"
+
+    def __iter__(self) -> Iterator[float]:
+        yield self.red
+        yield self.green
+        yield self.blue
+
+
+@add_slots
+@dataclass(init=False)
+class PeekableIterator(Iterator[T]):  # where T is never None
+    _inner: Iterator[T]
+    _next_item: T | None
+
+    def __init__(self, it: Iterable[T] = ()) -> None:
+        self._inner = iter(it)
+        self._next_item = None
+
+    def __next__(self) -> T:
+        if self._next_item is None:
+            return next(self._inner)
+        else:
+            val = self._next_item
+            self._next_item = None
+            return val
+
+    def peek(self) -> T | None:
+        if self._next_item is None:
+            self._next_item = next(self._inner, None)
+        return self._next_item
+
+    def exhausted(self) -> bool:
+        return self.peek() is None
+
+
+# This makes the generator function behave like a "classic coroutine"
+# as described in fluentpython.com/extra/classic-coroutines.
+# Such a coroutine doesn't output anything on the first `yield`.
+# This allows the caller to use the `.send()` method immediately.
+@no_type_check
+def skips_to_first_yield(func: T, /) -> T:
+    """Decorator which primes a generator func by calling the first next()"""
+
+    @wraps(func)
+    def primer(*args, **kwargs):
+        gen = func(*args, **kwargs)
+        next(gen)
+        return gen
+
+    return primer
+
+
+@add_slots
+@dataclass(frozen=True)
+class dictget(Generic[T, U]):
+    _map: Mapping[T, U]
+    default: U
+
+    def __call__(self, k: T) -> U:
+        try:
+            return self._map[k]
+        except KeyError:
+            return self.default
 
 
 # The copious overloads are to enable mypy to
@@ -159,3 +291,14 @@ class __pipe:
         for f in self._functions:
             value = f(value)
         return value
+
+
+T_contra = TypeVar("T_contra", contravariant=True)
+T_co = TypeVar("T_co", covariant=True)
+
+
+# shortcut for Callable[[T_contra], T_co]. Necessary for typing
+# dataclass fields, as Callable is interpreted incorrectly.
+class Func(Protocol[T_contra, T_co]):
+    def __call__(self, __value: T_contra) -> T_co:
+        ...

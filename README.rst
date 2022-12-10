@@ -29,9 +29,16 @@ Leave a ⭐️ on GitHub if you're interested how this develops!
 💁‍♂️ Why?
 ----------
 
-The most popular Python libraries for writing PDFs are quite old
-and inspired by Java and PHP. **pdf'je** is a modern, Pythonic library with
-a more declarative API.
+Unlike other Python PDF writers, **pdf'je** provides:
+
+- 🚲 A small footprint — dependencies optional
+- 🪄 A declarative API
+- 👌 Support for `kerning <https://en.wikipedia.org/wiki/Kerning>`_
+- 🪁 A permissive license
+
+That said, pdf'je is a new library, so it doesn't support a lot of
+advanced features. If you need these, you should check out
+other PDF writers such as ``reportlab``, ``fpdf2``, or ``borb``.
 
 🚀 How does it work?
 --------------------
@@ -47,47 +54,36 @@ but you can of course do more:
 
 .. code-block:: python
 
-  from pdfje import Page, Text, Font
+  from pdfje import Page, AutoPage, String, Font, Rect
+  from io import BytesIO
 
-  Document([
-      Page("""Simple is better than complex.
-              Complex is better than complicated."""),
-      Page(),
-      Page(["The following text is",
-            Text("bigger and fancier!",
-                 font=Font.from_path('path/to/MyFont.ttf'),
-                 size=20)])
-  ]).write('hello.pdf')
+  Document(
+    [
+      AutoPage(Text(long_bit_of_text)),  # automatic line/page breaks
+      Page(),  # blank page
+      Page(
+        [
+          String(
+            "big and fancy text!",
+            font=Font.from_path('path/to/MyFont.ttf'),
+            size=20
+          ),
+          Rect((50, 50), width=400, height=200)
+        ]
+      )
+    ]
+  ).write(target:= BytesIO())  # write to any file-like object
 
 
 See `the docs <https://pdfje.rtfd.io>`_ for a complete overview.
-
-👩‍⚕️ Is pdf'je right for me?
-------------------------------
-
-Try it if you:
-
-- Just want to get simple text into a PDF quickly
-- Prefer coding in a declarative and Pythonic style
-- Are looking for a lightweight, permissively licensed library
-- Enjoy experimenting and contributing to something new
-
-Look elsewhere if you:
-
-- Want to turn HTML into PDF -- use ``wkhtmltopdf`` instead
-- Need perfectly typeset documents -- use LaTeX instead
-- Want lots of features -- use ``reportlab`` or ``fpdf2`` instead
-- Need to parse or edit -- use ``PyPDF2`` or ``pdfsyntax`` instead
 
 🥘 What's cooking?
 ----------------------
 
 The following features are planned:
 
-- Automatic line/page breaks
-- ``rich``-inspired styles and inline markup
+- Inline markup with Markdown (Commonmark/MyST)
 - Support for images
-- Basic drawing operations
 - Bookmarks and links
 
 🎁 Installation
@@ -99,8 +95,17 @@ It's available on PyPI.
 
   pip install pdfje
 
+By default, no additional dependencies are installed.
+If you're making use of custom fonts, you'll need ``fontTools``,
+which is included in the ``[fonts]`` extras:
+
+.. code-block:: bash
+
+   pip install pdfje[fonts]
+
 🛠️ Development
 --------------
 
 - Install dependencies with ``poetry install``.
 - To write output files during tests, use ``pytest --output-path=<outpur-dir>``
+- To also run more comprehensive but 'slow' tests, use ``pytest --runslow``

@@ -12,20 +12,23 @@ or use :class:`~pdfje.Text` to add style information.
 
 .. code-block:: python
 
-  from pdfje import Document, Page, Text
+  from pdfje import Document, Page, span
   Document([
-      Page("Hello world!"),
+      AutoPage("Hello world!"),
       Page(),  # empty page
-      Page(["here is", Text("BIG", size=40), "text"]),
+      Page(["Here is ", span("BIG", size=40), "text"]),
   ]).to_path('hello.pdf')
+
+
+Style
+-----
 
 
 Output targets
 --------------
 
-You can write to paths, files, file-like objects, or a stream.
+You can write to paths, file-like objects, or a stream.
 See :meth:`pdfje.Document.write` for details.
-
 
 Fonts and unicode
 -----------------
@@ -55,7 +58,7 @@ There are two types of fonts:
 
      The standard fonts only support characters within the ``cp1252`` encoding
      (i.e. ASCII plus some common western european characters).
-     This is a limitation of the PDF format, not ``pdfje``.
+     This is a limitation of the PDF format, not pdfje.
      Characters outside this set will be displayed as ``?``.
      If you need broader unicode support,
      you will need to use :ref:`an embedded font<embedded-fonts>`.
@@ -64,7 +67,7 @@ There are two types of fonts:
 
 2. **Embedded fonts** are included in the PDF file itself.
    To use an embedded font, you will need to download its TrueType
-   (``.ttf``) font file and tell ``pdfje`` where to find it.
+   (``.ttf``) font file and tell pdfje where to find it.
 
    Here is an example of using the DejaVu font
 

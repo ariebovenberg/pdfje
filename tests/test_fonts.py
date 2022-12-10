@@ -1,27 +1,87 @@
 from random import Random
 
-from pdfje.fonts import EmbeddedSubset, utf16be_hex
+import pytest
+
+from pdfje.common import dictget
+from pdfje.fonts import Subset, kern, utf16be_hex
+from pdfje.fonts.common import KerningTable
 
 
-def _makefont(cidmap) -> EmbeddedSubset:
-    return EmbeddedSubset(
+def _make_subset(cids) -> Subset:
+    pytest.importorskip("fontTools")
+    return Subset(
         b"F0",
-        0,
         NotImplemented,
         NotImplemented,
+        cids,
         NotImplemented,
-        cidmap,
-        NotImplemented,
+        None,
     )
+
+
+_EXAMPLE_KERNINGTABLE: KerningTable = dictget(
+    {
+        ("x", "y"): -40,
+        ("a", "b"): -60,
+        (" ", "a"): -20,
+        ("a", " "): -10,
+        ("z", " "): -10,
+    },
+    0,
+)
+
+
+class TestKern:
+    def test_empty(self):
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "", 1, " ", 0)) == []
+
+    def test_no_kerning_needed(self):
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "basdfzyx", 1, " ", 0)) == []
+
+    def test_lots_of_kerning(self):
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "aaababaxyz", 1, " ", 0)) == [
+            (0, -20),
+            (3, -60),
+            (5, -60),
+            (8, -40),
+        ]
+
+    def test_lots_of_kerning_no_init(self):
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "aaababaxyz", 1, None, 0)) == [
+            (3, -60),
+            (5, -60),
+            (8, -40),
+        ]
+
+    def test_bigger_charsize(self):
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "aaababaxyz", 3, " ", 0)) == [
+            (0, -20),
+            (9, -60),
+            (15, -60),
+            (24, -40),
+        ]
+
+    def test_offset(self):
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "aaababaxyz", 3, " ", 4)) == [
+            (4, -20),
+            (13, -60),
+            (19, -60),
+            (28, -40),
+        ]
+
+    def test_one_letter(self):
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "a", 1, " ", 0)) == [
+            (0, -20),
+        ]
 
 
 class TestEncodeEmbeddedSubset:
     def test_empty(self):
-        assert _makefont({}).encode("") == b""
+        assert _make_subset({}).encode("") == b""
 
     def test_ascii(self):
         assert (
-            _makefont(
+            _make_subset(
                 {ord("a"): 1, ord("b"): 4, ord("\n"): 0xFFFE},
             ).encode("ab\n")
             == b"\x00\x01\x00\x04\xff\xfe"
@@ -29,7 +89,7 @@ class TestEncodeEmbeddedSubset:
 
     def test_exotic_unicode(self):
         assert (
-            _makefont(
+            _make_subset(
                 {ord("🌵"): 9, ord("𫄸"): 0xD900, ord("𒀗"): 0xFFFE}
             ).encode(
                 "🌵𫄸𒀗",
@@ -44,7 +104,7 @@ class TestEncodeEmbeddedSubset:
         cids = list(range(count))
         rand.shuffle(cids)
         cmap = dict(zip(map(ord, string), cids))
-        assert len(benchmark(_makefont(cmap).encode, string)) == 2 * len(
+        assert len(benchmark(_make_subset(cmap).encode, string)) == 2 * len(
             string
         )
 

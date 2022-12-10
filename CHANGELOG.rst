@@ -1,13 +1,22 @@
 Changelog
 =========
 
-0.4.0 (202?-??-??)
+0.4.0 (2023-??-??)
 ------------------
+
+**Breaking**
+
+- 🌅 Drop Python 3.7 support
 
 **Added**
 
 - 📏 Horizontal rule element
-- ✂️ Automatic line breaks to keep text within margins
+- ✂️  Automatic line and page breaks to keep text within margins
+- 🔬 Automatic kerning for supported fonts
+
+**Performance**
+
+- ⛳️ Document pages and fonts are now written in one efficient pass
 
 0.3.0 (2022-12-02)
 ------------------

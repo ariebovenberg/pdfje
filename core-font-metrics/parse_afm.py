@@ -7,12 +7,25 @@ import sys
 from fontTools.afmLib import AFM
 
 
-def main() -> None:
+def print_widths() -> None:
     f = AFM(sys.argv[1])
     widths = {
         ord(char.strip() or char): f[name][1] for name, char in NAMES.items()
     }
+    breakpoint()
     for k, v in sorted(widths.items()):
+        print(f"{k}: {v},")
+
+
+def print_kern() -> None:
+    f = AFM(sys.argv[1])
+    kern = {
+        (NAMES[a], NAMES[b]): value
+        for (a, b), value in f._kerning.items()
+        # Ignore characters we can't encode cp1252 anyway
+        if a in NAMES and b in NAMES
+    }
+    for k, v in sorted(kern.items()):
         print(f"{k}: {v},")
 
 
@@ -248,9 +261,15 @@ NAMES = {
     "zero": "0",
 }
 
+ZAPF_NAMES = {}
 
+
+# sanity checks
 assert len(set(NAMES.values())) == len(NAMES)
+# for char in NAMES.values():
+#     char.encode("cp1252")
 
 
 if __name__ == "__main__":
-    main()
+    # print_widths()
+    print_kern()
