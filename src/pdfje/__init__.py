@@ -1,76 +1,203 @@
 from __future__ import annotations
 
+import abc
+import os
 from dataclasses import dataclass
-from itertools import chain
-from pathlib import Path
+from functools import partial
+from itertools import chain, count, islice, repeat
+from pathlib import Path as FilePath
 from typing import (
     IO,
+    Callable,
     Generator,
     Iterable,
     Iterator,
     Literal,
-    Mapping,
-    NamedTuple,
     Sequence,
     overload,
 )
 
-from . import atoms, fonts
-from .common import Pt, add_slots, flatten, inch
-from .fonts import Font
+from . import atoms, fonts, ops
+from .atoms import OBJ_ID_PAGETREE, OBJ_ID_RESOURCES
+from .common import BBox, Pt, add_slots, flatten, inch
+from .fonts import (
+    Font,
+    Typeface,
+    courier,
+    helvetica,
+    symbol,
+    times_roman,
+    zapf_dingbats,
+)
+from .style import Style
 
-__all__ = ["Document", "Page", "Text", "Font"]
+__all__ = [
+    "Document",
+    "Page",
+    "Text",
+    "Typeface",
+    "courier",
+    "helvetica",
+    "times_roman",
+    "symbol",
+    "zapf_dingbats",
+]
 
-OBJ_ID_PAGETREE = 2
-OBJ_ID_RESOURCES = 3
-OBJ_ID_FIRST_PAGE = 4
+_OBJ_ID_FIRST_PAGE: atoms.ObjectID = OBJ_ID_RESOURCES + 1
+_OBJS_PER_PAGE = 2
 A4_SIZE = (A4_WIDTH, A4_HEIGHT) = (Pt(595), Pt(842))
+DEFAULT_MARGIN: Pt = inch(1)
+LINE_SPACING = 1.4  # ratio of leading space to font size
+
 Rotation = Literal[0, 90, 180, 270]
-DEFAULT_MARGIN = inch(1)
-LEADING_PER_FONTSIZE = 1.4  # ratio of leading space to font size
-
 _PageIndex = int  # zero-indexed page number
-_FontMap = Mapping[Font, fonts.IncludedFont]
-
-helvetica = fonts.Builtin(b"Helvetica")
-times_roman = fonts.Builtin(b"Times-Roman")
-courier = fonts.Builtin(b"Courier")
-symbol = fonts.Builtin(b"Symbol")
-zapf_dingbats = fonts.Builtin(b"ZapfDingbats")
+FontName = str
 
 
-class Point(NamedTuple):
-    x: float
-    y: float
+class Block(abc.ABC):
+    @property
+    @abc.abstractmethod
+    def style(self) -> Style:
+        ...
+
+    @abc.abstractmethod
+    def render(
+        self, font: Font, y: Pt, maxwidth: Pt
+    ) -> Generator[bytes, None, Pt]:
+        ...
+
+    @abc.abstractmethod
+    def typeset(
+        self, box: BBox, fr: fonts.Registry
+    ) -> Generator[Iterable[ops.Operation], BBox, None]:
+        ...
 
 
 @add_slots
 @dataclass(frozen=True)
-class Text:
-    """text positioned on a page"""
+class Text(Block):
+    """A paragraph"""
 
     content: str
-    font: Font = helvetica
-    size: float = 12
+    style: Style = Style()
+
+    def typeset(
+        self, limit: BBox, fr: fonts.Registry
+    ) -> Generator[Iterable[ops.Operation], BBox, None]:
+        for segment in self.content.splitlines() or ("",):
+            state = yield from typeset.to_boxes(
+                [typeset.TextSpan(self.style.as_command(fr), self.content)],
+                ops.State.DEFAULT,
+            )
+        # linebreaker = typeset.to_lines(boxes, limit.width)
+        # while True:
+        #     overflow = yield from typeset.fill()
+        #     if not overflow:
+        #         break
+
+        yield []
+        return
+        # yield next(
+        # for line in typeset.to_lines(boxes, bound.width):
+        #     ...
 
     def render(
-        self, font: fonts.IncludedFont, y: Pt
+        self,
+        font: Font,
+        y: Pt,
+        maxwidth: Pt,
     ) -> Generator[bytes, None, Pt]:
-        leading = LEADING_PER_FONTSIZE * self.size
-        yield b"BT\n/%b %g Tf\n%g %g Td\n%g TL\n" % (
-            font.id,
-            self.size,
+        size = self.style.size
+        leading = LINE_SPACING * size
+        yield b"BT\n%g %g Td\n/%b %g Tf\n%g TL\n" % (
             DEFAULT_MARGIN,
             y,
+            font.id,
+            size,
             leading,
         )
-        lines = self.content.splitlines()
-        for ln in lines:
+        # TODO: remove
+        # yield b"""
+        # 1 0 .5 rg
+        # /f0 20 Tf
+        # [(hello) 54 (world )] TJ
+        # (another) Tj
+        # T*
+        # (hey!!!!) Tj
+        # T*
+        # [2 3 (foobar is another word)] TJ
+        # """
+        num_lines = 0
+        for ln in flatten(
+            map(
+                partial(
+                    add_linebreaks,
+                    maxwidth,
+                    partial(_width, font.width, size),
+                    font.width(" ") * size,
+                ),
+                self.content.splitlines(),
+            )
+        ):
             yield from atoms.LiteralString(font.encode(ln)).write()
             yield b" '\n"
+            num_lines += 1
         yield b"ET\n"
 
-        return len(lines) * leading
+        return num_lines * leading
+
+
+def _width(swidth: Callable[[str], Pt], size: float, s: str) -> Pt:
+    return swidth(s) * size
+
+
+def add_linebreaks(
+    maxwidth: Pt,
+    calcwidth: Callable[[str], Pt],
+    w_space: Pt,
+    s: str,
+) -> Iterator[str]:
+    # TODO: handling of other unicode whitespace; dashes
+    space_left = maxwidth
+    buffer = []
+    for chunk in s.split():
+        w = calcwidth(chunk)
+        if w < space_left:
+            buffer.append(chunk)
+            space_left -= w + w_space
+        else:
+            yield " ".join(buffer)
+            buffer = [chunk]
+            # TODO: handle chunks larger than margin size
+            space_left = maxwidth - w
+
+    yield " ".join(buffer)
+
+
+@add_slots
+@dataclass(frozen=True)
+class Rule(Block):
+    """A horizontal rule"""
+
+    style: Style = Style()
+
+    def render(
+        self, font: Font, y: Pt, maxwidth: Pt
+    ) -> Generator[bytes, None, Pt]:
+        height = self.style.size
+        yield b"%g %g m %g %g l h S\n" % (
+            DEFAULT_MARGIN,
+            y - height / 2,
+            DEFAULT_MARGIN + maxwidth,
+            y - height / 2,
+        )
+        return height
+
+    def typeset(
+        self, box: BBox, fr: fonts.Registry
+    ) -> Generator[Iterable[ops.Operation], BBox, None]:
+        yield []
+        return
 
 
 @add_slots
@@ -78,11 +205,13 @@ class Text:
 class Page:
     """a page within a PDF document."""
 
-    content: Iterable[Text]
+    content: Iterable[Block]
     rotate: Rotation
 
     def __init__(
-        self, content: str | Iterable[str | Text] = (), rotate: Rotation = 0
+        self,
+        content: str | Iterable[str | Block] = (),
+        rotate: Rotation = 0,
     ) -> None:
         if isinstance(content, str):
             content = (Text(content),)
@@ -92,10 +221,10 @@ class Page:
         object.__setattr__(self, "rotate", rotate)
 
     def to_atoms(
-        self, i: _PageIndex, fm: _FontMap
-    ) -> Iterable[atoms.ObjectWithID]:
+        self, i: _PageIndex, fr: fonts.Registry
+    ) -> Iterable[atoms.Object]:
         yield i, self._raw_metadata(i + 1)
-        yield i + 1, atoms.Stream(b"".join(self._raw_content(fm)))
+        yield i + 1, atoms.Stream(b"".join(self._raw_content(fr)))
 
     def _raw_metadata(self, content: atoms.ObjectID) -> atoms.Dictionary:
         return atoms.Dictionary(
@@ -106,17 +235,77 @@ class Page:
             (b"Rotate", atoms.Int(self.rotate)),
         )
 
-    def _raw_content(self, fm: _FontMap) -> Iterator[bytes]:
+    def _raw_content(self, fr: fonts.Registry) -> Iterator[bytes]:
         y = A4_HEIGHT - DEFAULT_MARGIN
         for txt in self.content:
-            y -= yield from txt.render(fm[txt.font], y)
+            y -= yield from txt.render(
+                fr[txt.style.font], y, A4_WIDTH - (DEFAULT_MARGIN * 2)
+            )
+
+    # TODO: actually typeset, not just register font use
+    def typeset(self, fs: fonts.Registry) -> Iterator[Page]:
+        for t in self.content:
+            next(
+                t.typeset(
+                    BBox(
+                        A4_HEIGHT - DEFAULT_MARGIN * 2,
+                        A4_WIDTH - DEFAULT_MARGIN * 2,
+                    ),
+                    fs,
+                )
+            )
+
+            if isinstance(t, Text):
+                fs[t.style.font].encode(t.content)
+        yield self
+
+    def typeset_until_full(
+        self, fs: fonts.Registry, items: Iterable[Block]
+    ) -> Generator[Page, None, Iterable[Block]]:
+        raise NotImplementedError()
 
 
-def _id_for_page(i: _PageIndex) -> atoms.ObjectID:
-    # We represent pages with two objects:
-    # the metadata and the content.
-    # Therefore, object ID is enumerated twice as fast as page number.
-    return (i * 2) + OBJ_ID_FIRST_PAGE
+@add_slots
+@dataclass(frozen=True, init=False)
+class AutoPage:  # pragma: no cover
+    content: Iterable[Block]
+    template: Iterable[Page]
+
+    def __init__(
+        self,
+        content: str | Block | Iterable[Block],
+        template: Page | Iterable[Page] = Page(),
+    ) -> None:
+        if isinstance(content, str):
+            content = [Text(content)]
+        elif isinstance(content, Block):
+            content = [content]
+        object.__setattr__(self, "content", content)
+
+        if isinstance(template, Page):
+            template = repeat(template)
+        object.__setattr__(self, "template", template)
+
+    def to_atoms(
+        self, i: _PageIndex, fr: fonts.Registry
+    ) -> Iterable[atoms.Object]:
+        raise NotImplementedError()
+
+    # mutates fonts, but idempotently
+    def typeset(self, fs: fonts.Registry) -> Iterator[Page]:
+        items_remaining = self.content
+        for page in self.template:
+            items_remaining = yield from page.typeset_until_full(
+                fs, items_remaining
+            )
+            if not items_remaining:
+                break
+        else:
+            raise RuntimeError("Page templates exhausted but content remains.")
+
+        # in the future, return the result of automatic page breaking:
+        # - number of pages
+        # - location of labels for ToC
 
 
 @add_slots
@@ -138,16 +327,17 @@ class Document:
        A document must contain at least one page to be valid
     """
 
-    pages: Sequence[Page]
+    pages: tuple[Page | AutoPage, ...]
 
-    def __init__(self, content: Sequence[Page] | str | None = None) -> None:
-        if content is None:
-            pages: Sequence[Page] = (Page(),)
-        elif isinstance(content, str):
-            pages = (Page([Text(content)]),)
-        else:  # sequence of pages
-            assert content, "at least one page required"
-            pages = content
+    def __init__(
+        self, pages: Sequence[Page | AutoPage] | str | None = None
+    ) -> None:
+        if pages is None:
+            pages = (Page(),)
+        elif isinstance(pages, str):  # pragma: no cover
+            pages = (AutoPage([Text(pages)]),)
+        else:  # i.e. a sequence of pages
+            assert pages, "at least one page required"
 
         object.__setattr__(self, "pages", pages)
 
@@ -156,16 +346,16 @@ class Document:
         ...
 
     @overload
-    def write(self, target: Path | str | IO[bytes]) -> None:
+    def write(self, target: os.PathLike | str | IO[bytes]) -> None:
         ...
 
     def write(  # type: ignore[return]
-        self, target: Path | str | IO[bytes] | None = None
+        self, target: os.PathLike | str | IO[bytes] | None = None
     ) -> Iterator[bytes] | None:
         """Write the document to a given target. If no target is given,
         outputs the binary PDF content iteratively.
 
-        String or :class:`~pathlib.Path` target:
+        String, :class:`~pathlib.Path`, or :class:`~os.PathLike` target:
 
         >>> doc.write("myfolder/foo.pdf")
         >>> doc.write(Path.home() / "documents/foo.pdf")
@@ -184,36 +374,30 @@ class Document:
         """
         if target is None:
             return self._write_iter()
-        elif isinstance(target, str):
-            self._write_to_path(Path(target))
-        elif isinstance(target, Path):
-            self._write_to_path(target)
+        elif isinstance(target, (str, os.PathLike)):
+            self._write_to_path(FilePath(os.fspath(target)))
         else:  # i.e. IO[bytes]
             target.writelines(self._write_iter())
 
     def _write_iter(self) -> Iterator[bytes]:
-        page_id_limit = _id_for_page(len(self.pages))
-        page_ids = range(OBJ_ID_FIRST_PAGE, page_id_limit, 2)
-        fonts_used = {
-            u.font: u
-            for u in fonts.usage(
-                ((t.content, t.font) for p in self.pages for t in p.content),
-                first_id=page_id_limit,
-            )
-        }
+        fonts_ = fonts.Registry()
+        pages = list(flatten(o.typeset(fonts_) for o in self.pages))
+        first_font_id = _OBJ_ID_FIRST_PAGE + len(pages) * _OBJS_PER_PAGE
         return atoms.write(
             chain(
-                _write_headers(page_ids, fonts_used.values()),
                 flatten(
-                    page.to_atoms(i, fonts_used)
-                    for i, page in zip(page_ids, self.pages)
+                    page.to_atoms(i, fonts_)
+                    for page, i in zip(
+                        pages, count(_OBJ_ID_FIRST_PAGE, step=_OBJS_PER_PAGE)
+                    )
                 ),
-                flatten(f.to_atoms() for f in fonts_used.values()),
+                fonts_.to_objects(first_font_id),
+                _write_headers(len(pages), fonts_.to_resources(first_font_id)),
             )
         )
 
-    def _write_to_path(self, p: Path) -> None:
-        with Path(p).open("wb") as wfile:
+    def _write_to_path(self, p: FilePath) -> None:
+        with p.open("wb") as wfile:
             wfile.writelines(self.write())
 
 
@@ -227,27 +411,30 @@ _CATALOG_OBJ = (
 
 
 def _write_headers(
-    pages: Sequence[atoms.ObjectID], fs: Iterable[fonts.IncludedFont]
-) -> Iterable[atoms.ObjectWithID]:
+    num_pages: int, fonts_: atoms.Dictionary
+) -> Iterable[atoms.Object]:
     yield _CATALOG_OBJ
     yield (
         OBJ_ID_PAGETREE,
         atoms.Dictionary(
             (b"Type", atoms.Name(b"Pages")),
-            (b"Kids", atoms.Array(map(atoms.Ref, pages))),
-            (b"Count", atoms.Int(len(pages))),
+            (
+                b"Kids",
+                atoms.Array(
+                    map(
+                        atoms.Ref,
+                        islice(
+                            count(_OBJ_ID_FIRST_PAGE, step=_OBJS_PER_PAGE),
+                            num_pages,
+                        ),
+                    )
+                ),
+            ),
+            (b"Count", atoms.Int(num_pages)),
             (
                 b"MediaBox",
                 atoms.Array(map(atoms.Real, (0, 0, *A4_SIZE))),
             ),
         ),
     )
-    yield (
-        OBJ_ID_RESOURCES,
-        atoms.Dictionary(
-            (
-                b"Font",
-                atoms.Dictionary(*((u.id, u.to_resource()) for u in fs)),
-            ),
-        ),
-    )
+    yield OBJ_ID_RESOURCES, atoms.Dictionary((b"Font", fonts_))

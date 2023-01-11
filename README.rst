@@ -67,28 +67,28 @@ See `the docs <https://pdfje.rtfd.io>`_ for a complete overview.
 
 Try it if you:
 
-- 🎯 Just want to get simple text into a PDF quickly
-- 🪄 Prefer coding in a declarative and Pythonic style
-- 🎁 Are looking for a lightweight, permissively licensed library
-- 🔭 Enjoy experimenting and contributing to something new
+- Just want to get simple text into a PDF quickly
+- Prefer coding in a declarative and Pythonic style
+- Are looking for a lightweight, permissively licensed library
+- Enjoy experimenting and contributing to something new
 
 Look elsewhere if you:
 
-- 🕸️ Want to turn HTML into PDF -- use ``wkhtmltopdf`` instead
-- 🔬 Need perfectly typeset documents -- use LaTeX instead
-- 🚚 Want lots of features -- use ``reportlab`` or ``fpdf2`` instead
-- ✂️  Need to parse or edit -- use ``PyPDF2`` or ``pdfsyntax`` instead
+- Want to turn HTML into PDF -- use ``wkhtmltopdf`` instead
+- Need perfectly typeset documents -- use LaTeX instead
+- Want lots of features -- use ``reportlab`` or ``fpdf2`` instead
+- Need to parse or edit -- use ``PyPDF2`` or ``pdfsyntax`` instead
 
-🥘 So, what's cooking?
+🥘 What's cooking?
 ----------------------
 
 The following features are planned:
 
-- 📑 Automatic line/page breaks
-- 🎨 ``rich``-inspired styles and inline markup
-- 🖼️ Support for images
-- ✏️  Basic drawing operations
-- 🔗 Bookmarks and links
+- Automatic line/page breaks
+- ``rich``-inspired styles and inline markup
+- Support for images
+- Basic drawing operations
+- Bookmarks and links
 
 🎁 Installation
 ---------------

@@ -1,12 +1,37 @@
 from random import Random
 
-from pdfje.fonts import EmbeddedSubset, utf16be_hex
+from pdfje.common import dictget
+from pdfje.fonts import EmbeddedSubset, Kerned, utf16be_hex
 
 
-def _makefont(cidmap) -> EmbeddedSubset:
+def _makefont(cids=None, kerning=None) -> EmbeddedSubset:
     return EmbeddedSubset(
-        b"F0", 0, NotImplemented, NotImplemented, cidmap, NotImplemented
+        b"F0",
+        NotImplemented,
+        NotImplemented,
+        cids or NotImplemented,
+        NotImplemented,
+        kerning,
     )
+
+
+class TestKern:
+    def test_empty(self):
+        f = _makefont(kerning=dictget({tuple("xy"): -40, tuple("ab"): -60}, 0))
+        assert f.kern("") == Kerned((), "")
+
+    def test_no_kerning_table(self):
+        assert _makefont().kern("hello") == Kerned((), "hello")
+
+    def test_no_kerning_needed(self):
+        f = _makefont(kerning=dictget({tuple("xy"): -40, tuple("ab"): -60}, 0))
+        assert f.kern("asdfzyx") == Kerned([], "asdfzyx")
+
+    def test_example(self):
+        f = _makefont(kerning=dictget({tuple("xy"): -40, tuple("ab"): -60}, 0))
+        assert f.kern("aaababaxyz") == Kerned(
+            [("aaa", -60), ("ba", -60), ("bax", -40)], "yz"
+        )
 
 
 class TestEncodeEmbeddedSubset:
