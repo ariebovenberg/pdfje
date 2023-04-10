@@ -1,47 +1,43 @@
-.PHONY: clean isort isort-check format format-check fix lint type-check pytest check test documentation docs
-
-
-
+.PHONY: init
 init:
 	poetry install
 	pip install -r docs/requirements.txt
 
+.PHONY: clean
 clean:
 	rm -rf .coverage .hypothesis .mypy_cache .pytest_cache .tox *.egg-info
 	rm -rf dist
 	find . | grep -E "(__pycache__|docs_.*$$|\.pyc|\.pyo$$)" | xargs rm -rf
 
+.PHONY: isort
 isort:
 	isort .
 
-isort-check:
-	isort . --check-only --diff
-
+.PHONY: format
 format:
 	black .
 
-format-check:
-	black --check --diff .
-
+.PHONY: fix
 fix: isort format
 
+.PHONY: lint
 lint:
-	flake8 --exclude=.tox,build
+	flake8 .
 
-type-check:
-	mypy --pretty src tests
+.PHONY: mypy
+mypy:
+	mypy --pretty src tests examples/
 
-check: lint isort-check format-check type-check
-
-pytest:
+.PHONY: test
+test:
 	pytest --cov=pdfje
 
-test: check pytest
-
+.PHONY: docs
 docs:
 	@touch docs/api.rst
 	make -C docs/ html
 
+.PHONY: publish
 publish:
 	rm -rf dist/*
 	poetry build
