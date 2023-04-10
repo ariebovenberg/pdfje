@@ -104,7 +104,7 @@ class Span(_StyledText):
 @add_slots
 @dataclass(frozen=True, init=False)
 class Text(Drawing, _StyledText):
-    """Draw lines of text at the given location (no text wrapping)."""
+    """A :class:`~pdfje.Drawing` of text at the given location (not wrapped)"""
 
     loc: XY
     content: Iterable[str | Span]

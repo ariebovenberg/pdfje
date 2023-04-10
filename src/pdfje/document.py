@@ -103,8 +103,7 @@ class FilledPage:
 @add_slots
 @dataclass(frozen=True, init=False)
 class Page:
-    """A single page within a document. Contains any iterable of drawings,
-    which are rendered in the order they are given.
+    """A single page within a document. Contains drawings at given positions.
 
     Example
     -------
@@ -123,12 +122,13 @@ class Page:
     content
         The drawings to render on the page.
     size
-        The size of the page in points.
-        Common page sizes are available as constants:
+        The size of the page in points. Common page sizes are available
+        as constants:
 
         .. code-block:: python
 
-        from pdfje import Page, A4, A5, A6, letter, legal, tabloid
+            from pdfje import Page, A4, A5, A6, letter, legal, tabloid
+
     rotate
         The rotation of the page in degrees.
     margin
@@ -220,7 +220,7 @@ class AutoPage:
     template: ~pdfje.Page | ~typing.Callable[[int], ~pdfje.Page]
         A page to use as a template for the layout. If a callable is given,
         it is called with the page number as the only argument to generate
-        the page.
+        the page. Defaults to the default :class:`Page`.
 
     """
 
