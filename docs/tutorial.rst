@@ -178,7 +178,7 @@ Here is an example of a title page for our story, on A5-sized paper:
 
 .. code-block:: python
 
-    from pdfje import Page, Line, Rect, A5
+    from pdfje import Page, Line, Rect, A5, Text
 
     title_page = Page(
         [
