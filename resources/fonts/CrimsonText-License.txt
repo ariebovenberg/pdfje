@@ -1,5 +1,4 @@
-Copyright (c) 2003-2022 SIL International (http://www.sil.org/),
-with Reserved Font Names "Gentium" and "SIL".
+Copyright 2010 The Crimson Text Project Authors (https://github.com/googlefonts/Crimson)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:

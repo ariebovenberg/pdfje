@@ -9,8 +9,8 @@ You can also read the :ref:`API Reference <api>` for more details.
 Or, if you prefer, you can skip straight to the :ref:`examples <examples>`.
 
 
-The minimal document
---------------------
+🌱 The minimal document
+-----------------------
 
 Let's start with a very simple PDF document:
 
@@ -29,8 +29,8 @@ The following sections will explain how to expand on this example.
 
 .. _style:
 
-Styling text
-------------
+🎨 Styling text
+---------------
 
 In the previous example,
 
@@ -42,14 +42,15 @@ is actually shorthand for:
 
 .. code-block:: python
 
-   from pdfje import Paragraph
+   from pdfje.layout import Paragraph
    Document(Paragraph("It was a dark and stormy night..."))
 
-With :class:`~pdfje.Paragraph`, you can add styling:
+With :class:`~pdfje.layout.Paragraph`, you can add styling:
 
 .. code-block:: python
 
-   from pdfje import Style, times_roman
+   from pdfje.style import Style
+   from pdfje.fonts import times_roman
    paragraph = Style(font=times_roman, size=10, color="#003333")
    chapter_one = Paragraph("It was a dark and stormy night...", style=paragraph)
 
@@ -67,11 +68,11 @@ Styling within a paragraph
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You can also apply multiple styles to various parts of a single paragraph,
-by passing several strings and/or :class:`~pdfje.Span` instances to the constructor:
+by passing several strings and/or :class:`~pdfje.style.Span` instances to the constructor:
 
 .. code-block:: python
 
-   from pdfje import Span
+   from pdfje.style import Span
    chapter_one = Paragraph(
        [
            "It was a ",
@@ -91,7 +92,7 @@ This will render text as follows:
 
       <span style="font-size: 10pt;">It was a <span style="font-weight: bold;">dark</span> and <span style="font-size: 15pt; font-style: italic;">stormy</span> night...</span>
 
-Styles inside nested :class:`~pdfje.Span` objects will build on the style
+Styles inside nested :class:`~pdfje.style.Span` objects will build on the style
 of their parent. Span objects can be nested as deep as you like.
 
 Style Shortcuts
@@ -103,7 +104,7 @@ Firstly, ``bold`` and ``italic`` are predefined styles:
 
 .. code-block:: python
 
-   from pdfje import bold, italic  # equivalent to Style(italic=True)
+   from pdfje.style import bold, italic  # equivalent to Style(italic=True)
 
 Secondly, you can use fonts and colors directly as styles:
 
@@ -122,8 +123,8 @@ Lastly, you can adjust the default style at document level:
 
    doc = Document("Hello world", style=Style(font=times_roman, line_spacing=1.4))
 
-Pages
------
+📑 Pages
+--------
 
 Now that we know how text can be styled,
 let's look at how to customize the document and page layout.
@@ -153,7 +154,8 @@ Here is an example of creating an auto page with various blocks of text.
 
 .. code-block:: python
 
-  from pdfje import AutoPage, Rule
+  from pdfje import AutoPage
+  from pdfje.layout import Rule
   main_story = AutoPage([
       Paragraph("Chapter one: The beginning", style=heading),
       Paragraph("It was a dark and stormy night...", paragraph),
@@ -178,7 +180,9 @@ Here is an example of a title page for our story, on A5-sized paper:
 
 .. code-block:: python
 
-    from pdfje import Page, Line, Rect, A5, Text
+    from pdfje import Page
+    from pdfje.units import A5
+    from pdfje.draw import Line, Text, Rect
 
     title_page = Page(
         [
@@ -192,7 +196,12 @@ Here is an example of a title page for our story, on A5-sized paper:
             ),
             Ellipse((A5.x / 2, 200), 300, 100, fill="#22d388"),
             # The title on top of the shapes
-            Text((90, 230), "My awesome title", Style(size=30, bold=True))
+            Text(
+                (A5.x / 2, 230),
+                "My awesome title",
+                Style(size=30, bold=True),
+                anchor="middle",
+            )
         ],
         size=A5,
     )
@@ -214,12 +223,19 @@ See the :class:`~pdfje.Page` class for more details on customizing pages.
 
    .. code-block:: python
 
-     from pdfje import inch, pc, cm, mm, pt
+     from pdfje.units import inch, pc, cm, mm, pt
      inch(1)  # 72
      pc(1)  # 12
      cm(1)  # 28.346
      mm(1)  # 2.835
      pt(1)  # 1 -- no conversion needed but can be useful for explicitness
+
+   Standard page sizes are available in the :mod:`pdfje.units` module.
+
+   .. code-block:: python
+
+     from pdfje.units import A4, A5, A6, letter, legal, tabloid
+
 
 Page templates
 ~~~~~~~~~~~~~~
@@ -264,8 +280,8 @@ and returns a :class:`~pdfje.Page`.
     def create_page(num: int) -> Page:
         # add() creates a copy of the page with the given elements added.
         return template.add(
-            # the page number at the bottom right of the page
-            Text((A5.x - mm(20), mm(20)), str(num), Style(size=8))
+            # the page number at the bottom of the page
+            Text((A5.x / 2, mm(20)), str(num), Style(size=8), anchor="middle")
         )
 
     main_story = AutoPage(..., template=create_page)
@@ -275,8 +291,8 @@ the column layout for each page.
 This is useful for creating multi-column layouts.
 You can read more about this in :ref:`the multi-column example <multi-column>`.
 
-Fonts
------
+🖋️ Fonts
+--------
 
 We've already seen fonts in action in the previous section.
 There are two types of fonts:
@@ -296,11 +312,11 @@ There are two types of fonts:
 
    .. code-block:: python
 
-      from pdfje import courier, helvetica
+      from pdfje.fonts import courier, helvetica
       heading = Style(font=helvetica, size=20, bold=True)
       Span("Ciao, Courier", style=courier)
 
-   .. warning::
+   .. note::
 
      The standard fonts only support characters within the ``cp1252`` encoding
      (i.e. ASCII plus some common western european characters).
@@ -319,7 +335,7 @@ There are two types of fonts:
 
    .. code-block:: python
 
-      from pdfje import TrueType
+      from pdfje.fonts import TrueType
       dejavu = TrueType(
           "path/to/DejaVuSansCondensed.ttf",
           bold="path/to/DejaVuSansCondensed-Bold.ttf",
@@ -330,11 +346,8 @@ There are two types of fonts:
 
    .. note::
 
-      To save space, only the parts of the font that are actually used will
-      be embedded in the document.
-      This standard practice is called "subsetting".
-
-   .. note::
-
-      Any unicode characters for which a font has no representation
-      will be displayed as a 'missing character' box.
+      * To save space, only the parts of the font that are actually used will
+        be embedded in the document.
+        This standard practice is called "subsetting".
+      * Any unicode characters for which a font has no representation
+        will be displayed as a 'missing character' box.

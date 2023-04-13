@@ -1,18 +1,8 @@
-from pdfje import (
-    A3,
-    A4,
-    A6,
-    AutoPage,
-    Column,
-    Document,
-    Page,
-    Paragraph,
-    Style,
-    inch,
-    italic,
-    mm,
-    times_roman,
-)
+from pdfje import AutoPage, Document, Page
+from pdfje.fonts import times_roman
+from pdfje.layout import Column, Paragraph
+from pdfje.style import Style, italic
+from pdfje.units import A3, A4, A6, inch, mm
 
 
 def main() -> None:

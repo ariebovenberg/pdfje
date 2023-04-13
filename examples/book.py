@@ -2,21 +2,12 @@ import re
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from pdfje import (
-    A5,
-    AutoPage,
-    Document,
-    Ellipse,
-    Line,
-    Page,
-    Paragraph,
-    Rect,
-    Rule,
-    Style,
-    Text,
-    TrueType,
-    mm,
-)
+from pdfje import XY, AutoPage, Document, Page
+from pdfje.draw import Ellipse, Rect, Text
+from pdfje.fonts import TrueType
+from pdfje.layout import Paragraph, Rule
+from pdfje.style import Style
+from pdfje.units import inch, mm
 
 
 def main() -> None:
@@ -24,27 +15,31 @@ def main() -> None:
     Document(
         [TITLE_PAGE]
         + [AutoPage(blocks, template=create_page) for blocks in chapters()],
-        style=GENTIUM,
+        style=CRIMSON,
     ).write("book.pdf")
 
 
 def create_page(num: int) -> Page:
     # Add a page number at the bottom of the base page
-    return BASEPAGE.add(Text((A5.x / 2, mm(20)), str(num), Style(size=8)))
+    return BASEPAGE.add(
+        Text(
+            (PAGESIZE.x / 2, mm(20)), str(num), Style(size=10), align="center"
+        )
+    )
 
 
+PAGESIZE = XY(inch(5), inch(8))
 BASEPAGE = Page(
     [
-        # The title in small text at the top left of the page
+        # The title in small text at the top of the page
         Text(
-            (mm(20), A5.y - mm(10)),
+            (PAGESIZE.x / 2, PAGESIZE.y - mm(10)),
             "The Great Gatsby",
-            Style(size=8, italic=True),
+            Style(size=10, italic=True),
+            align="center",
         ),
-        # A line at the bottom of the page
-        Line((mm(20), mm(20)), (A5.x - mm(20), mm(20)), stroke="#aaaaaa"),
     ],
-    size=A5,
+    size=PAGESIZE,
     margin=(mm(20), mm(20), mm(25)),
 )
 
@@ -54,24 +49,34 @@ TITLE_PAGE = Page(
     [
         # Some nice shapes
         Rect(
-            (A5.x / 2 - 200, 275),  # use page dimensions to center it
+            (PAGESIZE.x / 2 - 200, 275),  # use page dimensions to center it
             width=400,
             height=150,
             fill="#99aaff",
             stroke=None,
         ),
-        Ellipse((A5.x / 2, 350), 300, 100, fill="#22d388"),
-        # The title on top of the shapes
-        Text((96, 380), "The Great Gatsby", Style(size=30, bold=True)),
-        Text((155, 100), "F. Scott Fitzgerald", Style(size=14, bold=True)),
+        Ellipse((PAGESIZE.x / 2, 350), 300, 100, fill="#22d388"),
+        # The title and author on top of the shapes
+        Text(
+            (PAGESIZE.x / 2, 380),
+            "The Great Gatsby",
+            Style(size=30, bold=True),
+            align="center",
+        ),
+        Text(
+            (PAGESIZE.x / 2, 100),
+            "F. Scott Fitzgerald",
+            Style(size=14, italic=True),
+            align="center",
+        ),
     ],
-    size=A5,
+    size=PAGESIZE,
 )
-GENTIUM = TrueType(
-    Path(__file__).parent / "../resources/fonts/GentiumPlus-Regular.ttf",
-    Path(__file__).parent / "../resources/fonts/GentiumPlus-Bold.ttf",
-    Path(__file__).parent / "../resources/fonts/GentiumPlus-Italic.ttf",
-    Path(__file__).parent / "../resources/fonts/GentiumPlus-BoldItalic.ttf",
+CRIMSON = TrueType(
+    Path(__file__).parent / "../resources/fonts/CrimsonText-Regular.ttf",
+    Path(__file__).parent / "../resources/fonts/CrimsonText-Bold.ttf",
+    Path(__file__).parent / "../resources/fonts/CrimsonText-Italic.ttf",
+    Path(__file__).parent / "../resources/fonts/CrimsonText-BoldItalic.ttf",
 )
 
 
@@ -85,10 +90,14 @@ def chapters() -> Iterable[Sequence[Paragraph | Rule]]:
         if p.strip() in _CHAPTER_NUMERALS:
             yield buffer
             buffer = [Paragraph(f"Chapter {p.strip()}\n\n", HEADING)]
-        elif p.startswith("---------------------"):
+        elif p.startswith("------"):
             buffer.append(Rule("#aaaaaa", (20, 10, 10)))
         else:
-            buffer.append(Paragraph(p))
+            buffer.append(
+                Paragraph(
+                    p, Style(line_spacing=1.2), align="justify", indent=20
+                )
+            )
     yield buffer
 
 

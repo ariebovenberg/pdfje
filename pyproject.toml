@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pdfje"
-version = "0.4.0"
+version = "0.5.0"
 description = "Tiny PDF writer"
 authors = ["Arie Bovenberg <a.c.bovenberg@gmail.com>"]
 license = "MIT"

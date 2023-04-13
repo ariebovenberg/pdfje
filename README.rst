@@ -28,8 +28,7 @@ Leave a ⭐️ on GitHub if you're interested how this develops!
 Why?
 ----
 
-There are many PDF libraries for Python, but none of them
-have these features:
+Pdf'je provides this unique combination of features:
 
 🧩 Declarative API
 ~~~~~~~~~~~~~~~~~~
@@ -58,7 +57,6 @@ PDF supports many features, but most of the time you only need a few.
 Why install many dependencies — just to write a simple document?
 Not only is **pdf'je** pure-Python, it allows you to
 install only the dependencies you need.
-
 
 Quickstart
 ----------
@@ -115,6 +113,7 @@ Features:
 - 🚧 Images
 - 🚧 Bookmarks and links
 - 🚧 Tables
+- 🚧 Bullet/numbered lists
 - 🚧 Inline markup with Markdown (Commonmark/MyST)
 - ❌ Emoji
 - ❌ Tables of contents
@@ -143,7 +142,7 @@ License
 
 This library is licensed under the terms of the MIT license.
 It also includes short scripts from other projects (see ``pdfje/vendor``),
-which are also MIT licensed.
+which are either also MIT licensed, or in the public domain.
 
 Contributing
 ------------
@@ -154,14 +153,16 @@ Here are some useful tips for developing in the ``pdfje`` codebase itself:
 - To write output files during tests, use ``pytest --output-path=<outpur-dir>``
 - To also run more comprehensive but 'slow' tests, use ``pytest --runslow``
 
-Alternatives
-------------
+Acknowledgements
+----------------
 
-If pdf'je doesn't suit your needs, here are some other options:
+**pdf'je** is inspired by the following projects.
+If you're looking for a PDF writer, you may want to check them out as well:
 
-- PyFPDF
-- ReportLab
-- WeasyPrint
-- borb
-- wkhtmltopdf
-- pydyf
+- `python-typesetting <https://github.com/brandon-rhodes/python-typesetting>`_
+- `fpdf2 <https://pyfpdf.github.io/fpdf2/index.html>`_
+- `ReportLab <https://www.reportlab.com/>`_
+- `WeasyPrint <https://weasyprint.org/>`_
+- `borb <httpsL//github.com/jorisschellekens/borb/>`_
+- `wkhtmltopdf <https://wkhtmltopdf.org/>`_
+- `pydyf <https://github.com/CourtBouillon/pydyf>`_

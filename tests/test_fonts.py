@@ -41,13 +41,13 @@ _EXAMPLE_KERNINGTABLE: KerningTable = dictget(
 
 class TestKern:
     def test_empty(self):
-        assert list(kern(_EXAMPLE_KERNINGTABLE, "", 1, " ", 0)) == []
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "", " ", 0)) == []
 
     def test_no_kerning_needed(self):
-        assert list(kern(_EXAMPLE_KERNINGTABLE, "basdfzyx", 1, " ", 0)) == []
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "basdfzyx", " ", 0)) == []
 
     def test_lots_of_kerning(self):
-        assert list(kern(_EXAMPLE_KERNINGTABLE, "aaababaxyz", 1, " ", 0)) == [
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "aaababaxyz", " ", 0)) == [
             (0, -20),
             (3, -60),
             (5, -60),
@@ -55,30 +55,22 @@ class TestKern:
         ]
 
     def test_lots_of_kerning_no_init(self):
-        assert list(kern(_EXAMPLE_KERNINGTABLE, "aaababaxyz", 1, None, 0)) == [
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "aaababaxyz", None, 0)) == [
             (3, -60),
             (5, -60),
             (8, -40),
         ]
 
-    def test_bigger_charsize(self):
-        assert list(kern(_EXAMPLE_KERNINGTABLE, "aaababaxyz", 3, " ", 0)) == [
-            (0, -20),
-            (9, -60),
-            (15, -60),
-            (24, -40),
-        ]
-
     def test_offset(self):
-        assert list(kern(_EXAMPLE_KERNINGTABLE, "aaababaxyz", 3, " ", 4)) == [
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "aaababaxyz", " ", 4)) == [
             (4, -20),
-            (13, -60),
-            (19, -60),
-            (28, -40),
+            (7, -60),
+            (9, -60),
+            (12, -40),
         ]
 
     def test_one_letter(self):
-        assert list(kern(_EXAMPLE_KERNINGTABLE, "a", 1, " ", 0)) == [
+        assert list(kern(_EXAMPLE_KERNINGTABLE, "a", " ", 0)) == [
             (0, -20),
         ]
 

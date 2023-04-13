@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import enum
 from dataclasses import dataclass, fields
-from functools import partial, wraps
+from functools import wraps
 from itertools import chain
-from operator import itemgetter, mul
+from operator import itemgetter
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -20,22 +21,13 @@ from typing import (
     overload,
 )
 
-Pt = float
+Pt = float  # not allowed to be inf or nan (math.isfinite)
 Char = str  # 1-character string
 Pos = int  # position within a string (index)
 HexColor = str  # 6-digit hex color, starting with `#`. e.g. #ff0000
+Streamable = Iterable[bytes]  # PDF stream content
 
 flatten = chain.from_iterable
-inch: Callable[[float], Pt] = partial(mul, 72)
-inch.__doc__ = "Convert inches to points"
-cm: Callable[[float], Pt] = partial(mul, 28.346456692913385)
-cm.__doc__ = "Convert centimeters to points"
-mm: Callable[[float], Pt] = partial(mul, 2.8346456692913385)
-mm.__doc__ = "Convert millimeters to points"
-pc: Callable[[float], Pt] = partial(mul, 12)
-pc.__doc__ = "Convert picas to points"
-pt: Callable[[float], Pt] = lambda x: x
-pt.__doc__ = "No-op conversion. Can be used to make units explicit."
 first = itemgetter(0)
 second = itemgetter(1)
 Ordinal = int  # a unicode code point
@@ -182,6 +174,21 @@ class XY(Sequence[float]):
         return XY(self.y, self.x)
 
 
+class Align(enum.Enum):
+    """Horizontal alignment of text."""
+
+    LEFT = 0
+    CENTER = 1
+    RIGHT = 2
+    JUSTIFY = 3
+
+    @staticmethod
+    def parse(align: Align | str) -> Align:
+        if isinstance(align, str):
+            return Align[align.upper()]
+        return align
+
+
 @add_slots
 @dataclass(frozen=True)
 class Sides(Sequence[float]):
@@ -240,32 +247,6 @@ class Sides(Sequence[float]):
 SidesLike = (
     Sides | tuple[Pt, Pt, Pt, Pt] | tuple[Pt, Pt, Pt] | tuple[Pt, Pt] | Pt
 )
-
-
-A0 = XY(2380, 3368)
-A1 = XY(1684, 2380)
-A2 = XY(1190, 1684)
-A3 = XY(842, 1190)
-A4 = XY(595, 842)
-A5 = XY(420, 595)
-A6 = XY(297, 420)
-A7 = XY(210, 297)
-A8 = XY(148, 210)
-A0_landscape = A0.flip()
-A1_landscape = A1.flip()
-A2_landscape = A2.flip()
-A3_landscape = A3.flip()
-A4_landscape = A4.flip()
-A5_landscape = A5.flip()
-A6_landscape = A6.flip()
-A7_landscape = A7.flip()
-A8_landscape = A8.flip()
-letter = XY(612, 792)
-letter_landscape = letter.flip()
-legal = XY(612, 1008)
-legal_landscape = legal.flip()
-tabloid = XY(792, 1224)
-ledger = tabloid_landscape = tabloid.flip()
 
 
 @final

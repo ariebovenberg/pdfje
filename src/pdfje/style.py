@@ -1,15 +1,36 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, fields, replace
-from typing import TYPE_CHECKING, ClassVar, Iterator, TypeGuard, TypeVar
+from itertools import chain
+from typing import (
+    TYPE_CHECKING,
+    ClassVar,
+    Generator,
+    Iterable,
+    Iterator,
+    TypeGuard,
+    TypeVar,
+    final,
+)
 
 from .common import RGB, HexColor, Pt, add_slots, setattr_frozen
 from .fonts.builtins import helvetica
 from .fonts.common import BuiltinTypeface, TrueType, Typeface
 from .fonts.registry import Registry
-from .ops import SetColor, SetFont, SetLineSpacing, State, StateChange
+from .typeset import (
+    Chain,
+    Command,
+    SetColor,
+    SetFont,
+    SetLineSpacing,
+    State,
+    Stretch,
+)
+
+__all__ = ["Style", "Span", "StyleLike"]
 
 
+@final
 @add_slots
 @dataclass(frozen=True, init=False)
 class Style:
@@ -19,7 +40,7 @@ class Style:
 
     Parameters
     ----------
-    font: ~pdfje.TrueType | ~pdfje.BuiltinTypeface
+    font: ~pdfje.fonts.TrueType | ~pdfje.fonts.BuiltinTypeface
         Typeface to use.
     size: float
         Size of the font, in points.
@@ -90,12 +111,16 @@ class Style:
         return Style(color=RGB.parse(other)) | self
 
     def __repr__(self) -> str:
-        field_reprs = (
+        field_reprs = [
             (f.name, v)
             for f in fields(self)
             if (v := getattr(self, f.name)) is not None
+        ]
+        return (
+            f"Style({', '.join(f'{k}={v!r}' for k, v in field_reprs)})"
+            if field_reprs
+            else "Style.EMPTY"
         )
-        return f"Style({', '.join(f'{k}={v!r}' for k, v in field_reprs)})"
 
     @staticmethod
     def parse(s: StyleLike) -> Style:
@@ -110,7 +135,7 @@ class Style:
         else:
             raise TypeError(f"Cannot parse style from {s!r}")
 
-    def diff(self, r: Registry, base: StyleFull) -> Iterator[StateChange]:
+    def diff(self, r: Registry, base: StyleFull) -> Iterator[Command]:
         if (
             _differs(self.bold, base.bold)
             or _differs(self.italic, base.italic)
@@ -140,8 +165,11 @@ StyleLike = Style | RGB | Typeface | HexColor
 Style.EMPTY = Style()
 
 bold = Style(bold=True)
+"""Shortcut for bold style."""
 italic = Style(italic=True)
+"""Shortcut for italic style."""
 regular = Style(bold=False, italic=False)
+"""Shortcut for regular (non-bold or italic) style."""
 
 
 @add_slots
@@ -172,9 +200,7 @@ class StyleFull:
             self.line_spacing,
         )
 
-    def diff(
-        self, registry: Registry, base: StyleFull
-    ) -> Iterator[StateChange]:
+    def diff(self, registry: Registry, base: StyleFull) -> Iterator[Command]:
         if not (
             self.bold == base.bold
             and self.italic == base.italic
@@ -206,6 +232,74 @@ def _fallback(a: _T | None, b: _T) -> _T:
 
 def _differs(a: _T | None, b: _T) -> TypeGuard[_T]:
     return a is not None and a != b
+
+
+class StyledMixin:
+    "A mixin for shared behavior of styled text classes"
+    __slots__ = ()
+    content: Iterable[str | Span]
+    style: Style
+
+    def flatten(
+        self,
+        r: Registry,
+        base: StyleFull,
+        todo: Iterator[Command] = iter(()),
+    ) -> Generator[Stretch, None, Iterator[Command]]:
+        todo = chain(todo, self.style.diff(r, base))
+        newbase = base | self.style
+        for item in self.content:
+            if isinstance(item, str):
+                yield Stretch(Chain.squash(todo), item)
+            else:
+                todo = yield from item.flatten(r, newbase, todo)
+        return chain(todo, base.diff(r, newbase))
+
+
+@final
+@add_slots
+@dataclass(frozen=True, init=False)
+class Span(StyledMixin):
+    """A fragment of text with a style.
+
+    Parameters
+    ----------
+    content: str | Span | ~typing.Iterable[str | Span]
+        The text to render. Can be a string, or a nested :class:`~pdfje.Span`.
+    style
+        The style to render the text with.
+        See :ref:`tutorial<style>` for more details.
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        from pdfje.style import Span, Style, bold
+        from pdfje.fonts import times_roman
+
+        # A simple span
+        Span("Hello, world!", Style(size=24, color="#ff0000"))
+        # A nested span
+        Span([
+            "Beautiful is ",
+            Span("better", helvetica | bold),
+            " than ugly.",
+        ], style=times_roman)
+    """
+
+    content: Iterable[str | Span]
+    style: Style
+
+    def __init__(
+        self,
+        content: str | Span | Iterable[str | Span],
+        style: StyleLike = Style.EMPTY,
+    ):
+        if isinstance(content, (str, Span)):
+            content = [content]
+        setattr_frozen(self, "content", content)
+        setattr_frozen(self, "style", Style.parse(style))
 
 
 # The implementation of these operators are patched onto existing classes here

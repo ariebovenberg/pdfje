@@ -1,6 +1,20 @@
 Changelog
 =========
 
+0.5.0 (2023-??-??)
+------------------
+
+**Breaking**
+
+- 🪆 Expose most classes from submodules instead of root
+  (e.g. ``pdfje.Rect`` becomes ``pdfje.draw.Rect``).
+  The new locations can be found in the API documentation.
+
+**Added**
+
+- 📰 Support for horizontal alignment and justification of text.
+- 🫸 Support for indenting the first line of a paragraph.
+
 0.4.0 (2023-04-10)
 ------------------
 

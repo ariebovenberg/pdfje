@@ -1,12 +1,6 @@
 from typing import TYPE_CHECKING, Collection, Iterable, Sequence, TypeVar
 
-from pdfje import Rule
-
 T = TypeVar("T")
-
-
-# a book is a sequence of chapters, which are sequences of paragraphs
-Book = Sequence[Sequence[str | Rule]]
 
 
 class eq_iter(list[T]):

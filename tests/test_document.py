@@ -5,39 +5,13 @@ import pytest
 from hypothesis import given
 from hypothesis.strategies import text
 
-from pdfje import (
-    A4,
-    A5,
-    A6,
-    XY,
-    AutoPage,
-    Block,
-    Column,
-    Document,
-    Line,
-    Page,
-    Polyline,
-    Rect,
-    Rule,
-    Span,
-    Style,
-    Text,
-    blue,
-    bold,
-    courier,
-    helvetica,
-    inch,
-    italic,
-    lime,
-    mm,
-    red,
-    regular,
-    times_roman,
-)
+from pdfje import XY, AutoPage, Document, Page, blue, lime, red
 from pdfje.document import Rotation
-from pdfje.draw import Circle, Ellipse
-from pdfje.fonts.common import TrueType
-from pdfje.text import Paragraph
+from pdfje.draw import Circle, Ellipse, Line, Polyline, Rect, Text
+from pdfje.fonts import TrueType, courier, helvetica, times_roman
+from pdfje.layout import Block, Column, Paragraph, Rule
+from pdfje.style import Span, Style, bold, italic, regular
+from pdfje.units import A4, A5, A6, inch, mm
 
 from .common import approx
 
@@ -213,7 +187,12 @@ class TestAutopage:
     def test_text(self, outfile):
         text: list[Block | str] = [
             LOREM_IPSUM,
-            Paragraph(LOREM_IPSUM, "#770000" | times_roman | italic),
+            Paragraph(
+                LOREM_IPSUM,
+                "#770000" | times_roman | italic,
+                indent=20,
+                align="justify",
+            ),
             Rule(),
             Paragraph(
                 "\n".join([ZEN_OF_PYTHON] * 4) + "\n",
@@ -225,6 +204,7 @@ class TestAutopage:
                     italic=True,
                     bold=True,
                 ),
+                align="center",
             ),
             *[Rule()] * 6,
             Paragraph(
@@ -246,6 +226,7 @@ class TestAutopage:
                     )
                 ),
                 Style(size=2, font=times_roman),
+                align="right",
             ),
         ]
         Document(
@@ -294,25 +275,22 @@ def test_draw(outfile):
                         "Big red text, and LINES!",
                         Style(size=40, color=red),
                     ),
-                ]
-            ),
-            Page(
-                [
-                    Rect(
-                        (A5.x / 2 - 200, 200),
-                        width=400,
-                        height=100,
-                        fill="#99aaff",
-                        stroke=None,
-                    ),
-                    Ellipse((A5.x / 2, 200), 300, 100, fill="#22d388"),
+                    Circle((A4.x / 2, 400), 5, stroke=red),
                     Text(
-                        (90, 230),
-                        "My awesome title",
-                        Style(size=30, bold=True),
+                        (A4.x / 2, 400),
+                        "Centered text\nwith multiple lines that are"
+                        "\nalso centered...",
+                        Style(size=20, color=blue),
+                        align="center",
                     ),
-                ],
-                size=A5,
+                    Circle((A4.x * 0.8, 200), 5, stroke=red),
+                    Text(
+                        (A4.x * 0.8, 200),
+                        "right-aligned text\nis also\npossible...",
+                        Style(size=20, color="#ff0099"),
+                        align="right",
+                    ),
+                ]
             ),
         ]
     ).write(outfile)
@@ -322,7 +300,14 @@ def test_rotate(outfile):
     Document(
         [
             Page(
-                [Text((150, 400), f"rotated {angle}", style=Style(size=60))],
+                [
+                    Text(
+                        A4 / 2,
+                        f"rotated {angle}",
+                        style=Style(size=60),
+                        align="center",
+                    )
+                ],
                 rotate=angle,
             )
             for angle in ALL_ANGLES
@@ -333,7 +318,7 @@ def test_rotate(outfile):
 @pytest.mark.skipif(
     not HAS_FONTTOOLS, reason="fonttools not installed (optional)"
 )
-def test_fonts(outfile, dejavu: TrueType, gentium: TrueType):
+def test_fonts(outfile, dejavu: TrueType, crimson: TrueType):
     Document(
         [
             Page(
@@ -344,7 +329,7 @@ def test_fonts(outfile, dejavu: TrueType, gentium: TrueType):
                             Span("Cheers, Cour®ier\n", courier),
                             "Hey ",
                             "hélvetica!\n",
-                            Span("Greëtings Geñtium...\n", gentium),
+                            Span("Ciåo Crîmson...\n", crimson),
                             Span(
                                 "Hello 𝌷 agaîn,\nDejaVü! Kerning AWAY! ",
                                 dejavu,
@@ -355,7 +340,7 @@ def test_fonts(outfile, dejavu: TrueType, gentium: TrueType):
                             ),
                             Span(
                                 "\n(check the above text can be copied!)",
-                                gentium,
+                                crimson,
                             ),
                             "\nunknown char (builtin font): ∫",
                             Span("\nunknown char (embedded font): ⟤", dejavu),
@@ -368,7 +353,7 @@ def test_fonts(outfile, dejavu: TrueType, gentium: TrueType):
             ),
             AutoPage(
                 [
-                    Paragraph(LOREM_IPSUM, gentium),
+                    Paragraph(LOREM_IPSUM, crimson),
                     Paragraph(
                         LOREM_IPSUM,
                         Style(

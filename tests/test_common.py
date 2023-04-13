@@ -1,6 +1,6 @@
 import pytest
 
-from pdfje.common import RGB, XY, Sides, cm, inch, mm, pt
+from pdfje.common import RGB, XY, Sides
 
 from .common import approx
 
@@ -138,10 +138,3 @@ class TestSides:
 
         with pytest.raises(TypeError, match="sides"):
             Sides.parse("foo")  # type: ignore[arg-type]
-
-
-def test_units():
-    assert inch(1) == approx(72)
-    assert cm(1) == approx(28.34645669291339)
-    assert mm(1) == approx(2.8346456692913386)
-    assert pt(1) == 1

@@ -1,13 +1,13 @@
-from dataclasses import dataclass, field
-from math import inf
+from dataclasses import dataclass, field, replace
 from typing import Iterable
 from unittest.mock import ANY
 
 import pytest
 
-from pdfje import RGB, helvetica, ops
+from pdfje import RGB
 from pdfje.atoms import LiteralString, Real
 from pdfje.common import Char, Func, Pt, always, dictget, setattr_frozen
+from pdfje.fonts import helvetica
 from pdfje.fonts.common import (
     TEXTSPACE_TO_GLYPHSPACE,
     Font,
@@ -17,20 +17,24 @@ from pdfje.fonts.common import (
     KerningTable,
     kern,
 )
-from pdfje.ops import NO_OP, Chain, SetColor, SetFont, State, StateChange
 from pdfje.typeset import (
+    NO_OP,
+    Chain,
+    Command,
     Cursor,
     Exhausted,
     GaugedString,
-    Kerned,
     LimitReached,
     Line,
     MixedWord,
+    SetColor,
+    SetFont,
+    State,
     Stretch,
     WrapDone,
     Wrapper,
     _encode_kerning,
-    break_at_width,
+    break_,
     splitlines,
 )
 
@@ -47,7 +51,7 @@ class TestWrapperLine:
         w = Wrapper.start([sp(RED, "")], STATE)
         assert isinstance(w, Wrapper)
         line, wnew = w.line(10_000)
-        assert line == Line([], 10_000, STATE.lead)
+        assert line == Line([], 0, 0, STATE.lead)
         assert wnew == WrapDone(RED.apply(STATE))
 
     def test_one_word_stretch_fits(self):
@@ -55,7 +59,10 @@ class TestWrapperLine:
         assert isinstance(w, Wrapper)
         line, wnew = w.line(10_000)
         assert line == Line(
-            [k("Complex", FONT_3)], approx(10_000 - 209.55), 18.75
+            [g("Complex", BIG.apply(STATE))],
+            0,
+            approx(209.55),
+            18.75,
         )
         assert wnew == WrapDone(BIG.apply(STATE))
 
@@ -63,29 +70,47 @@ class TestWrapperLine:
         w = Wrapper.start([Stretch(BLUE, "Complex")], STATE)
         assert isinstance(w, Wrapper)
         line, wnew = w.line(90)
-        assert line == Line([k("Complex", FONT_3)], approx(90 - 139.7), 12.5)
+        assert line == Line(
+            [g("Complex", BLUE.apply(STATE))],
+            0,
+            approx(139.7),
+            12.5,
+        )
         assert wnew == WrapDone(BLUE.apply(STATE))
 
     def test_one_stretch_fits(self):
         w = Wrapper.start([Stretch(SMALL, "Complex is better ")], STATE)
         assert isinstance(w, Wrapper)
         line, wnew = w.line(10_000)
+        width = 169.85
         assert line == Line(
-            [k("Complex is better", FONT_3)],
-            approx(10_000 - 169.85),
+            [g("Complex is better", SMALL.apply(STATE))],
+            0,
+            approx(width),
             6.25,
         )
         assert wnew == WrapDone(SMALL.apply(STATE))
 
     def test_one_stretch_partial_fit(self):
         stretch = Stretch(BLUE, "Complex is better ")
-        w = Wrapper.start([stretch], STATE)
+        w = Wrapper.start([stretch, Stretch(RED, "not reached")], STATE)
         assert isinstance(w, Wrapper)
         line, wnew = w.line(200)
-        assert line == Line([k("Complex is", FONT_3)], approx(0.3), 12.5)
+        width = 199.7
+        assert line == Line(
+            [g("Complex is", BLUE.apply(STATE))],
+            approx(200 - width),
+            approx(width),
+            12.5,
+        )
         assert_wrapper_eq(
             wnew,
-            Wrapper(EMPTY, Cursor(stretch.txt, 11), BLUE.apply(STATE), None),
+            Wrapper(
+                iter([Stretch(RED, "not reached")]),
+                Cursor(stretch.txt, 11),
+                BLUE.apply(STATE),
+                None,
+            ),
         )
 
     def test_one_stretch_minimal_fit(self):
@@ -93,7 +118,13 @@ class TestWrapperLine:
         w = Wrapper.start([stretch], STATE)
         assert isinstance(w, Wrapper)
         line, wnew = w.line(0.01)
-        assert line == Line([k("Complex", FONT_3)], approx(-139.69), 12.5)
+        width = 139.7
+        assert line == Line(
+            [g("Complex", BLUE.apply(STATE))],
+            approx(0.01 - width),
+            approx(width),
+            12.5,
+        )
         assert_wrapper_eq(
             wnew,
             Wrapper(EMPTY, Cursor(stretch.txt, 8), BLUE.apply(STATE), None),
@@ -105,9 +136,14 @@ class TestWrapperLine:
         )
         assert isinstance(w, Wrapper)
         line, wnew = w.line(10_000)
+        width = 579.55
         assert line == Line(
-            [k("Complex  is better   than ", FONT_3), k("com", FONT_3, " ")],
-            approx(10_000 - 579.55),
+            [
+                g("Complex  is better   than ", BLUE.apply(STATE)),
+                g("com", BLUE.apply(STATE), " "),
+            ],
+            0,
+            approx(width),
             12.5,
         )
         assert wnew == WrapDone(BLUE.apply(STATE))
@@ -117,8 +153,12 @@ class TestWrapperLine:
         w = Wrapper.start([stretch], STATE)
         assert isinstance(w, Wrapper)
         line, wnew = w.line(540)
+        width = 499.7
         assert line == Line(
-            [k("Complex  is better   than", FONT_3)], approx(40.3), 12.5
+            [g("Complex  is better   than", BLUE.apply(STATE))],
+            approx(540 - width),
+            approx(width),
+            12.5,
         )
         assert_wrapper_eq(
             wnew,
@@ -130,8 +170,12 @@ class TestWrapperLine:
         w = Wrapper.start([stretch], STATE)
         assert isinstance(w, Wrapper)
         line, wnew = w.line(450)
+        width = 399.7
         assert line == Line(
-            [k("Complex  is better  ", FONT_3)], approx(450 - 399.7), 12.5
+            [g("Complex  is better  ", BLUE.apply(STATE))],
+            approx(450 - width),
+            approx(width),
+            12.5,
         )
         assert_wrapper_eq(
             wnew,
@@ -169,28 +213,33 @@ class TestWrapperLine:
         line, wnew = w.line(expect_width + 0.01)
         assert line == Line(
             [
-                k("Complex  is ", FONT_3),
+                g("Complex  is ", BLUE.apply(STATE)),
                 BIG,
-                k("better", FONT_3, None),
+                g("better", multi(BIG, BLUE).apply(STATE), None),
                 GREEN,
-                k(" than ...wait for it... ", FONT_3, "r"),
-                k("com", FONT_3, " "),
+                g(
+                    " than ...wait for it... ",
+                    multi(BIG, GREEN).apply(STATE),
+                    "r",
+                ),
+                g("com", multi(BIG, GREEN).apply(STATE), " "),
                 RED,
                 HUGE,
                 SMALL,
-                k("plicated. Flat is ", FONT_3, None),
-                k("be", FONT_3, " "),
+                g("plicated. Flat is ", multi(SMALL, RED).apply(STATE), None),
+                g("be", multi(SMALL, RED).apply(STATE), " "),
                 GREEN,
-                k("tt", FONT_3, "e"),
+                g("tt", multi(SMALL, GREEN).apply(STATE), "e"),
                 BLACK,
                 RED,
-                k("er than  ", FONT_3, "t"),
-                k("nested", FONT_3, " "),
+                g("er than  ", multi(SMALL, RED).apply(STATE), "t"),
+                g("nested", multi(SMALL, RED).apply(STATE), " "),
                 BLUE,
                 GREEN,
-                k(".", FONT_3, "d"),
+                g(".", multi(SMALL, GREEN).apply(STATE), "d"),
             ],
-            approx(0.01),
+            0,
+            approx(expect_width),
             BIG.apply(STATE).lead,
         )
         assert wnew == WrapDone(multi(SMALL, GREEN).apply(STATE))
@@ -225,23 +274,28 @@ class TestWrapperLine:
         line, wnew = w.line(width_partial_tail + 0.01)
         assert line == Line(
             [
-                k("Complex  is ", FONT_3),
+                g("Complex  is ", BLUE.apply(STATE)),
                 BIG,
-                k("better", FONT_3, None),
+                g("better", multi(BIG, BLUE).apply(STATE), None),
                 GREEN,
-                k(" than ...wait for it... ", FONT_3, "r"),
-                k("com", FONT_3, " "),
+                g(
+                    " than ...wait for it... ",
+                    multi(BIG, GREEN).apply(STATE),
+                    "r",
+                ),
+                g("com", multi(BIG, GREEN).apply(STATE), " "),
                 RED,
                 SMALL,
-                k("plicated. Flat is ", FONT_3, None),
-                k("be", FONT_3, " "),
+                g("plicated. Flat is ", multi(SMALL, RED).apply(STATE), None),
+                g("be", multi(SMALL, RED).apply(STATE), " "),
                 GREEN,
-                k("tt", FONT_3, "e"),
+                g("tt", multi(SMALL, GREEN).apply(STATE), "e"),
                 BLACK,
                 RED,
-                k("er than ", FONT_3, "t"),
+                g("er than ", multi(SMALL, RED).apply(STATE), "t"),
             ],
             approx(width_partial_tail - width_expect + 0.01),
+            approx(width_expect),
             BIG.apply(STATE).lead,
         )
         assert_wrapper_eq(
@@ -274,9 +328,7 @@ class TestWrapperLine:
                     HUGE,
                     GaugedString.build("pl", HUGE.apply(STATE), "m"),
                     NORMAL,
-                    GaugedString.build(
-                        "ex", multi(HUGE, GREEN).apply(STATE), "l"
-                    ),
+                    GaugedString.build("ex", NORMAL.apply(STATE), "l"),
                     GREEN,
                 ],
                 "x",
@@ -293,19 +345,20 @@ class TestWrapperLine:
         line, wnew = w.line(width_expect + 0.01)
         assert line == Line(
             [
-                k("Com", FONT_3, None),
+                g("Com", STATE, None),
                 HUGE,
-                k("pl", FONT_3, "m"),
+                g("pl", HUGE.apply(STATE), "m"),
                 NORMAL,
-                k("ex", FONT_3, "l"),
+                g("ex", STATE, "l"),
                 GREEN,
-                k("  is ", FONT_3, "x"),
+                g("  is ", GREEN.apply(STATE), "x"),
                 BIG,
-                k("better", FONT_3, "x"),
+                g("better", multi(BIG, GREEN).apply(STATE), " "),
                 RED,
-                k(" than complicated.", FONT_3, "x"),
+                g(" than complicated.", multi(BIG, RED).apply(STATE), "r"),
             ],
-            approx(0.01),
+            0,
+            approx(width_expect),
             HUGE.apply(STATE).lead,
         )
         assert wnew == WrapDone(multi(BIG, RED).apply(STATE))
@@ -324,9 +377,7 @@ class TestWrapperLine:
                     HUGE,
                     GaugedString.build("pl", HUGE.apply(STATE), "m"),
                     NORMAL,
-                    GaugedString.build(
-                        "ex", multi(HUGE, GREEN).apply(STATE), "l"
-                    ),
+                    GaugedString.build("ex", STATE, "l"),
                     GREEN,
                 ],
                 "x",
@@ -343,19 +394,20 @@ class TestWrapperLine:
         line, wnew = w.line(width_expect + 40)
         assert line == Line(
             [
-                k("Com", FONT_3, None),
+                g("Com", STATE, None),
                 HUGE,
-                k("pl", FONT_3, "m"),
+                g("pl", HUGE.apply(STATE), "m"),
                 NORMAL,
-                k("ex", FONT_3, "l"),
+                g("ex", STATE, "l"),
                 GREEN,
-                k(
-                    "  is better than complicated. " "Flat is better than",
-                    FONT_3,
+                g(
+                    "  is better than complicated. Flat is better than",
+                    GREEN.apply(STATE),
                     "x",
                 ),
             ],
             approx(40),
+            approx(width_expect),
             HUGE.apply(STATE).lead,
         )
         assert_wrapper_eq(
@@ -383,9 +435,7 @@ class TestWrapperLine:
                     HUGE,
                     GaugedString.build("pl", HUGE.apply(STATE), "m"),
                     NORMAL,
-                    GaugedString.build(
-                        "ex", multi(HUGE, GREEN).apply(STATE), "l"
-                    ),
+                    GaugedString.build("ex", STATE, "l"),
                     GREEN,
                 ],
                 "x",
@@ -397,14 +447,15 @@ class TestWrapperLine:
         line, wnew = w.line(0.01)
         assert line == Line(
             [
-                k("Com", FONT_3, None),
+                g("Com", STATE, None),
                 HUGE,
-                k("pl", FONT_3, "m"),
+                g("pl", HUGE.apply(STATE), "m"),
                 NORMAL,
-                k("ex", FONT_3, "l"),
+                g("ex", STATE, "l"),
                 GREEN,
-                k("_is", FONT_3, "x"),
+                g("_is", GREEN.apply(STATE), "x"),
             ],
+            ANY,
             ANY,
             HUGE.apply(STATE).lead,
         )
@@ -429,9 +480,7 @@ class TestWrapperLine:
                     HUGE,
                     GaugedString.build("pl", HUGE.apply(STATE), "m"),
                     NORMAL,
-                    GaugedString.build(
-                        "ex", multi(HUGE, GREEN).apply(STATE), "l"
-                    ),
+                    GaugedString.build("ex", STATE, "l"),
                     GREEN,
                 ],
                 "x",
@@ -443,14 +492,15 @@ class TestWrapperLine:
         line, wnew = w.line(0.01)
         assert line == Line(
             [
-                k("Com", FONT_3, None),
+                g("Com", STATE, None),
                 HUGE,
-                k("pl", FONT_3, "m"),
+                g("pl", HUGE.apply(STATE), "m"),
                 NORMAL,
-                k("ex", FONT_3, "l"),
+                g("ex", STATE, "l"),
                 GREEN,
             ],
             0.01 - 210,
+            approx(210),
             HUGE.apply(STATE).lead,
         )
         assert_wrapper_eq(
@@ -474,9 +524,9 @@ class TestMixedWord:
             HUGE.apply(STATE).lead,
             HUGE.apply(STATE),
         )
-        assert m.head.txt.kerning[0] == (0, -15)
+        assert m.head.kern[0] == (0, -15)
         m_without = m.without_init_kern()
-        assert m_without.head.txt.kerning == m.head.txt.kerning[1:]
+        assert m_without.head.kern == m.head.kern[1:]
         assert m_without.width == approx(m.width + 0.15)
         assert m_without.without_init_kern() == m_without
 
@@ -506,12 +556,13 @@ class TestWrapperFill:
         assert section.lines == [
             Line(
                 [
-                    k(STRETCHES[0].txt, FONT_3),
+                    g(STRETCHES[0].txt, RED.apply(STATE)),
                     BIG,
-                    k(STRETCHES[1].txt, FONT_3, " "),
+                    g(STRETCHES[1].txt, multi(BIG, RED).apply(STATE), " "),
                     NORMAL,
-                    k(STRETCHES[2].txt[:-1], FONT_3, "e"),
+                    g(STRETCHES[2].txt[:-1], RED.apply(STATE), "e"),
                 ],
+                ANY,
                 ANY,
                 BIG.apply(STATE).lead,
             )
@@ -537,7 +588,7 @@ class TestWrapperFill:
         assert w.state == RED.apply(STATE)
         section, w_new = w.fill(0.1, 0.1, allow_empty=False)
         assert section.lines == [
-            Line([k("Beautiful", FONT_3)], ANY, STATE.lead)
+            Line([g("Beautiful", RED.apply(STATE))], ANY, ANY, STATE.lead)
         ]
         assert section.height_left == approx(0.1 - STATE.lead)
         assert_wrapper_eq(
@@ -581,87 +632,71 @@ class TestWrapperFill:
         assert len(section.lines) == 2
         assert section.height_left == approx(100 - 2 * STATE.lead)
 
-    def test_infinite_frame(self):
-        w = Wrapper.start(STRETCHES, STATE)
-        assert isinstance(w, Wrapper)
-        assert w.state == RED.apply(STATE)
-        section, done = w.fill(inf, inf, allow_empty=True)
-        [line] = section.lines
-        assert line.lead == 18.75
-        assert len(line.segments) == 5
-        assert section.height_left == inf
-        assert isinstance(done, WrapDone)
-        assert done.state == RED.apply(STATE)
-
 
 class TestBreakAtWidth:
     def test_empty(self):
-        assert break_at_width("", STATE, 0.01, False, 0, None) == Exhausted(
-            None, None
-        )
-        assert break_at_width("", STATE, 0.01, True, 0, None) == Exhausted(
-            None, None
-        )
+        assert break_("", STATE, 0.01, False, 0, None) == Exhausted(None, None)
+        assert break_("", STATE, 0.01, True, 0, None) == Exhausted(None, None)
 
     def test_word(self):
         gauged = GaugedString.build("complex", STATE, None)
-        assert break_at_width(
+        assert break_(
             "complex", STATE, gauged.width + 0.01, False, 0, None
         ) == Exhausted(None, gauged)
-        assert break_at_width(
+        assert break_(
             "complex", STATE, gauged.width + 0.01, True, 0, None
         ) == Exhausted(None, gauged)
-        assert break_at_width(
+        assert break_(
             "complex", STATE, gauged.width - 0.01, False, 0, None
         ) == Exhausted(None, gauged)
-        assert break_at_width(
+        assert break_(
             "complex", STATE, gauged.width - 0.01, True, 0, None
         ) == LimitReached(None, 0)
 
     def test_word_with_initial_kern(self):
         gauged = GaugedString.build("complex", STATE, " ")
-        assert break_at_width(
+        assert break_(
             "complex", STATE, gauged.width + 0.01, False, 0, " "
         ) == Exhausted(None, gauged)
-        assert break_at_width(
+        assert break_(
             "complex", STATE, gauged.width + 0.01, True, 0, " "
         ) == Exhausted(None, gauged)
-        assert break_at_width(
+        assert break_(
             "complex", STATE, gauged.width - 0.01, False, 0, " "
         ) == Exhausted(None, gauged)
-        assert break_at_width(
+        assert break_(
             "complex", STATE, gauged.width - 0.01, True, 0, " "
         ) == LimitReached(None, 0)
 
     def test_word_with_break(self):
         gauged = GaugedString.build("complex.  ", STATE, None)
         w = width("complex. ", STATE, None)
-        assert break_at_width(
+        assert break_(
             "complex.  ", STATE, w + 0.01, False, 0, None
         ) == Exhausted(gauged, None)
-        assert break_at_width(
+        assert break_(
             "complex.  ", STATE, w + 0.01, True, 0, None
         ) == Exhausted(gauged, None)
-        assert break_at_width(
+        assert break_(
             "complex.  ", STATE, w - 0.01, False, 0, None
         ) == Exhausted(gauged, None)
-        assert break_at_width(
+        assert break_(
             "complex.  ", STATE, w - 0.01, True, 0, None
         ) == LimitReached(None, 0)
 
     def test_word_with_break_and_kerning_around_edges(self):
         gauged = GaugedString.build("complex. ", STATE, " ")
         w = width("complex.", STATE, " ")
-        assert break_at_width(
+        assert break_(
             "complex. ", STATE, w + 0.01, False, 0, " "
         ) == Exhausted(gauged, None)
-        assert break_at_width(
-            "complex. ", STATE, w + 0.01, True, 0, " "
-        ) == Exhausted(gauged, None)
-        assert break_at_width(
+        assert break_("complex. ", STATE, w + 0.01, True, 0, " ") == Exhausted(
+            gauged, None
+        )
+        assert break_(
             "complex. ", STATE, w - 0.01, False, 0, " "
         ) == Exhausted(gauged, None)
-        assert break_at_width(
+        assert break_(
             "complex. ", STATE, w - 0.01, True, 0, " "
         ) == LimitReached(None, 0)
 
@@ -669,27 +704,27 @@ class TestBreakAtWidth:
     def test_sentence_fits(self, allow_empty):
         gauged = GaugedString.build("better  than complex. ", STATE, None)
         w = width("better  than complex.", STATE, None)
-        assert break_at_width(
+        assert break_(
             "better  than complex. ", STATE, w + 0.01, allow_empty, 0, None
         ) == Exhausted(gauged, None)
 
     def test_sentence_first_word_too_wide(self):
-        assert break_at_width(
+        assert break_(
             "better  than complex.  ", STATE, 139, False, 0, None
         ) == LimitReached(GaugedString.build("better ", STATE, None), 8)
-        assert break_at_width(
+        assert break_(
             "better  than complex.  ", STATE, 139, True, 0, None
         ) == LimitReached(None, 0)
 
     @pytest.mark.parametrize("allow_empty", [True, False])
     def test_sentence_partial_fit(self, allow_empty):
-        assert break_at_width(
+        assert break_(
             "better  than complex.  ", STATE, 300, allow_empty, 0, None
         ) == LimitReached(GaugedString.build("better  than", STATE, None), 13)
 
     @pytest.mark.parametrize("allow_empty", [True, False])
     def test_sentence_with_tail_fits(self, allow_empty):
-        assert break_at_width(
+        assert break_(
             "better  than complex. Compl", STATE, 10_000, allow_empty, 0, None
         ) == Exhausted(
             GaugedString.build("better  than complex. ", STATE, None),
@@ -698,18 +733,18 @@ class TestBreakAtWidth:
 
     @pytest.mark.parametrize("allow_empty", [True, False])
     def test_sentence_tail_doesnt_fit(self, allow_empty):
-        assert break_at_width(
+        assert break_(
             "better  than complex.  Compl", STATE, 500, allow_empty, 0, None
         ) == LimitReached(
             GaugedString.build("better  than complex. ", STATE, None), 23
         )
 
     def test_start_from(self):
-        assert break_at_width(
+        assert break_(
             "Simple is better than complex", STATE, 10_000, False, 22, None
         ) == Exhausted(None, GaugedString.build("complex", STATE, None))
 
-        assert break_at_width(
+        assert break_(
             "Simple is  better  than complex.  Compl",
             STATE,
             500,
@@ -770,10 +805,52 @@ class TestSplitlines:
         assert list(next(result)) == [Stretch(NO_OP, "")]
 
 
+class TestJustify:
+    def test_empty(self):
+        line = Line([], 10, 0, 0)
+        assert line.justify() == line
+
+    def test_no_word_breaks(self):
+        line = Line([GaugedString.build("Beautiful", STATE, None)], 10, 10, 0)
+        assert line.justify() == line
+
+    def test_one_word_break(self):
+        content = GaugedString.build("Beautiful is", STATE, None)
+        line = Line([content, RED], 8, content.width, STATE.lead)
+        justified = line.justify()
+        assert justified.width == approx(line.width + 8)
+        assert (
+            sum(
+                g.width
+                for g in justified.segments
+                if isinstance(g, GaugedString)
+            )
+            == justified.width
+        )
+
+    def test_multiple_breaks_different_sizes(self):
+        line = Line(
+            SEGMENTS,
+            10,
+            sum(g.width for g in SEGMENTS if isinstance(g, GaugedString)),
+            HUGE.apply(STATE).lead,
+        )
+        justified = line.justify()
+        assert justified.width == approx(line.width + 10)
+        assert (
+            sum(
+                g.width
+                for g in justified.segments
+                if isinstance(g, GaugedString)
+            )
+            == justified.width
+        )
+
+
 class TestEncodeKerning:
     def test_typical(self):
         assert list(
-            _encode_kerning(b"abcdefg", [(1, -20), (2, -30), (6, -40)])
+            _encode_kerning("abcdefg", [(1, -20), (2, -30), (6, -40)], FONT_3)
         ) == [
             LiteralString(b"a"),
             Real(20),
@@ -785,7 +862,9 @@ class TestEncodeKerning:
         ]
 
     def test_kern_first_char(self):
-        assert list(_encode_kerning(b"abcdefg", [(0, -20), (2, -30)])) == [
+        assert list(
+            _encode_kerning("abcdefg", [(0, -20), (2, -30)], FONT_3)
+        ) == [
             Real(20),
             LiteralString(b"ab"),
             Real(30),
@@ -816,13 +895,13 @@ class DummyFont(Font):
     def kern(
         self, s: str, /, prev: Char | None, offset: int
     ) -> Iterable[Kern]:
-        return kern(self.kerning, s, 1, prev, offset) if self.kerning else ()
+        return kern(self.kerning, s, prev, offset) if self.kerning else ()
 
     def encode(self, s: str, /) -> bytes:
         return s.encode("latin-1")
 
 
-def multi(*args: StateChange) -> StateChange:
+def multi(*args: Command) -> Command:
     return Chain(args)
 
 
@@ -856,9 +935,9 @@ def mkstate(
     size: int = 12,
     color: tuple[float, float, float] = (0, 0, 0),
     line_spacing: float = 1.25,
-) -> ops.State:
+) -> State:
     """factory to easily create a State"""
-    return ops.State(font, size, RGB(*color), line_spacing)
+    return State(font, size, RGB(*color), line_spacing)
 
 
 STATE = mkstate(FONT_3, 10)
@@ -883,6 +962,19 @@ STRETCHES = [
     Stretch(BIG, "Simple"),
     Stretch(NORMAL, " is better than complex. "),
 ]
+SEGMENTS: list[Command | GaugedString] = [
+    GaugedString.build("Beautiful ", STATE, None),
+    BLUE,
+    GaugedString.build("is    better ", BLUE.apply(STATE), " "),
+    HUGE,
+    GaugedString.build("than ugly.", multi(BLUE, HUGE).apply(STATE), " "),
+    RED,
+    GaugedString.build(" Explicit is ", multi(HUGE, RED).apply(STATE), "."),
+    BIG,
+    GaugedString.build(
+        "better than implicit.", multi(RED, BIG).apply(STATE), None
+    ),
+]
 
 
 def assert_wrapper_eq(a: Wrapper | WrapDone, b: Wrapper | WrapDone):
@@ -902,12 +994,13 @@ def assert_wrapper_eq(a: Wrapper | WrapDone, b: Wrapper | WrapDone):
         assert a == b
 
 
-def k(s: str, f: Font, prev: Char | None = None) -> Kerned:
+def g(s: str, st: State, prev: Char | None = None) -> GaugedString:
     """Helper to create a kerned string"""
-    return Kerned(f.encode(s), list(f.kern(s, prev, 0)))
+    gauged = GaugedString.build(s, st, prev)
+    return replace(gauged, width=approx(gauged.width))
 
 
-def sp(cmd: StateChange, s: str) -> Stretch:
+def sp(cmd: Command, s: str) -> Stretch:
     return Stretch(cmd, s)
 
 

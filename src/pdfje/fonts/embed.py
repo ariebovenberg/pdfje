@@ -149,9 +149,7 @@ if TYPE_CHECKING or HAS_FONTTOOLS:
         def kern(
             self, s: str, /, prev: Char | None, offset: int
         ) -> Iterable[tuple[int, GlyphPt]]:
-            return (
-                kern(self.kerning, s, 2, prev, offset) if self.kerning else ()
-            )
+            return kern(self.kerning, s, prev, offset) if self.kerning else ()
 
         def to_objects(self, obj_id: atoms.ObjectID) -> Iterable[atoms.Object]:
             # PDF only supports 16-bit character/glyph entries,

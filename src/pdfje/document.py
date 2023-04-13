@@ -16,29 +16,24 @@ from typing import (
     overload,
 )
 
-from . import atoms, ops
+from . import atoms
 from .atoms import OBJ_ID_PAGETREE, OBJ_ID_RESOURCES
 from .common import (
-    A4,
-    RGB,
     XY,
-    HexColor,
     Pt,
     Sides,
     SidesLike,
     add_slots,
     always,
-    black,
     flatten,
-    inch,
     setattr_frozen,
     skips_to_first_yield,
 )
 from .draw import Drawing
 from .fonts.registry import Registry
-from .layout import Block, Column, ColumnFill
+from .layout import Block, Column, ColumnFill, Paragraph
 from .style import Style, StyleFull, StyleLike
-from .text import Paragraph
+from .units import A4, inch
 
 _OBJ_ID_FIRST_PAGE: atoms.ObjectID = OBJ_ID_RESOURCES + 1
 _OBJS_PER_PAGE = 2
@@ -47,43 +42,8 @@ Rotation = Literal[0, 90, 180, 270]
 
 
 @add_slots
-@dataclass(frozen=True, init=False)
-class Rule(Block):
-    """A :class:`Block` that draws a horizontal line."""
-
-    color: RGB
-    padding: Sides
-
-    def __init__(
-        self,
-        color: RGB | HexColor = black,
-        padding: SidesLike = Sides(6, 0, 6, 0),
-    ) -> None:
-        setattr_frozen(self, "color", RGB.parse(color))
-        setattr_frozen(self, "padding", Sides.parse(padding))
-
-    def layout(
-        self, __: Registry, fill: ColumnFill, ___: StyleFull
-    ) -> Generator[ColumnFill, Column, ColumnFill]:
-        top, right, bottom, left = self.padding
-        if fill.height_free < top + bottom:
-            fill = ColumnFill.new((yield fill))
-
-        y = fill.col.origin.y + fill.height_free - top
-        x = fill.col.origin.x + left
-        return fill.add(
-            ops.DrawLine(
-                XY(x, y),
-                XY(x + fill.col.width - left - right, y),
-                self.color,
-            ),
-            fill.height_free - top - bottom,
-        )
-
-
-@add_slots
 @dataclass(frozen=True)
-class FilledPage:
+class RenderedPage:
     rotate: Rotation
     size: XY
     stream: Iterable[bytes]
@@ -158,9 +118,7 @@ class Page:
         size = XY.parse(size)
         setattr_frozen(self, "content", content)
         setattr_frozen(self, "rotate", rotate)
-        setattr_frozen(
-            self, "columns", columns or [_column_from_margin(size, margin)]
-        )
+        setattr_frozen(self, "columns", columns or [_column(size, margin)])
         setattr_frozen(self, "size", size)
 
     def add(self, d: Drawing, /) -> Page:
@@ -172,35 +130,32 @@ class Page:
             The drawing to add to the page
         """
         return Page(
-            [*self.content, d],
-            self.size,
-            self.rotate,
-            columns=self.columns,
+            [*self.content, d], self.size, self.rotate, columns=self.columns
         )
 
     def generate(
         self, f: Registry, s: StyleFull, pnum: int, /
-    ) -> Iterator[FilledPage]:
-        yield FilledPage(
+    ) -> Iterator[RenderedPage]:
+        yield RenderedPage(
             self.rotate,
             self.size,
             flatten(map(methodcaller("render", f, s), self.content)),
         )
 
     def fill(
-        self, f: Registry, s: StyleFull, extra: Iterable[ops.Command]
-    ) -> FilledPage:
-        return FilledPage(
+        self, f: Registry, s: StyleFull, extra: Iterable[bytes]
+    ) -> RenderedPage:
+        return RenderedPage(
             self.rotate,
             self.size,
             chain(
                 flatten(map(methodcaller("render", f, s), self.content)),
-                flatten(map(ops.into_stream, extra)),
+                extra,
             ),
         )
 
 
-def _column_from_margin(page: XY, margin: SidesLike) -> Column:
+def _column(page: XY, margin: SidesLike) -> Column:
     top, right, bottom, left = Sides.parse(margin)
     return Column(
         XY(left, bottom), page.x - left - right, page.y - top - bottom
@@ -244,7 +199,7 @@ class AutoPage:
 
     def generate(
         self, fr: Registry, style: StyleFull, pnum: int, /
-    ) -> Iterator[FilledPage]:
+    ) -> Iterator[RenderedPage]:
         gen = self._chained_blocks_layout(fr, style)
         for page in map(self.template, count(pnum)):  # pragma: no branch
             filled_columns = []
@@ -254,11 +209,11 @@ class AutoPage:
                 except StopIteration:
                     break
             else:
-                yield page.fill(fr, style, filled_columns)
+                yield page.fill(fr, style, flatten(filled_columns))
                 continue  # there's still content, so keep on paging
 
             if filled_columns:
-                yield page.fill(fr, style, filled_columns)
+                yield page.fill(fr, style, flatten(filled_columns))
             return
 
     @skips_to_first_yield
@@ -285,9 +240,8 @@ class Document:
     Parameters
     ----------
 
-    content: ~typing.Iterable[Page | AutoPage] | str | Paragraph | None
-        The content of the document. Can be a string, a list of pages,
-        or a list of blocks.
+    content
+        The content of the document.
     style
         Change the default style of the document.
 
@@ -307,7 +261,7 @@ class Document:
 
     note
     ----
-       A document must contain at least one page to be valid
+    A document must contain at least one page to be valid
     """
 
     pages: Iterable[Page | AutoPage]

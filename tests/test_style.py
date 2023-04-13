@@ -1,9 +1,19 @@
 import pytest
 
-from pdfje import RGB, XY, Paragraph, Span, Style, Text, helvetica, times_roman
+from pdfje import RGB, XY
+from pdfje.draw import Text
+from pdfje.fonts import helvetica, times_roman
 from pdfje.fonts.registry import Registry
-from pdfje.ops import NO_OP, Chain, SetColor, SetFont, SetLineSpacing
-from pdfje.typeset import Stretch
+from pdfje.layout import Paragraph
+from pdfje.style import Span, Style
+from pdfje.typeset import (
+    NO_OP,
+    Chain,
+    SetColor,
+    SetFont,
+    SetLineSpacing,
+    Stretch,
+)
 from tests.common import eq_iter
 
 

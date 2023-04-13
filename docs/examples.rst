@@ -5,8 +5,8 @@ Examples
 
 The code for the examples can be found in the ``examples/`` directory.
 
-A book
-~~~~~~
+📚 A book
+~~~~~~~~~
 
 This example shows:
 
@@ -15,17 +15,17 @@ This example shows:
 - Simple graphics
 - Custom font
 
-.. collapse:: Source code
+.. collapse:: Source code (click to expand)
 
     .. literalinclude :: ../examples/book.py
 
 .. _multi-column:
 
-Multiple columns
-~~~~~~~~~~~~~~~~
+📰 Multiple columns
+~~~~~~~~~~~~~~~~~~~
 
 This example shows the flexibility of the layout engine.
 
-.. collapse:: Source code
+.. collapse:: Source code (click to expand)
 
     .. literalinclude :: ../examples/multicolumn.py

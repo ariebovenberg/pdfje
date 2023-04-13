@@ -1,29 +1,143 @@
 from __future__ import annotations
 
+import abc
 import re
-from dataclasses import dataclass, replace
-from itertools import chain, tee
+from dataclasses import dataclass, field, replace
+from heapq import merge
+from itertools import chain, groupby, tee
 from operator import methodcaller
-from typing import Iterable, Iterator, Sequence
+from typing import Collection, Iterable, Iterator, Sequence
 
 from .atoms import Array, LiteralString, Real
 from .common import (
+    RGB,
     Char,
     NonEmptySequence,
     NonEmtpyIterator,
     Pos,
     Pt,
+    Streamable,
     add_slots,
+    first,
     flatten,
     prepend,
     second,
     setattr_frozen,
 )
-from .fonts.common import TEXTSPACE_TO_GLYPHSPACE, Kern
-from .ops import NO_OP, Command, State, StateChange
+from .fonts.common import TEXTSPACE_TO_GLYPHSPACE, Font, GlyphPt, Kern
 
+# FUTURE: expand to support more exotic unicode whitespace
 _BREAK_RE = re.compile(r" +")
+_WORDBREAK_RE = re.compile(r" ")
 _NEWLINE_RE = re.compile(r"(?:\r\n|\n)")
+
+
+class Command(Iterable[bytes]):
+    __slots__ = ()
+
+    @abc.abstractmethod
+    def apply(self, s: State, /) -> State:
+        ...
+
+
+@add_slots
+@dataclass(frozen=True)
+class _NoOp(Command):
+    def apply(self, s: State) -> State:
+        return s
+
+    def __iter__(self) -> Iterator[bytes]:
+        return iter(())
+
+
+NO_OP = _NoOp()
+
+
+@add_slots
+@dataclass(frozen=True)
+class Chain(Command):
+    items: Collection[Command]
+
+    def apply(self, s: State) -> State:
+        for c in self.items:
+            s = c.apply(s)
+        return s
+
+    def __iter__(self) -> Iterator[bytes]:
+        return flatten(self.items)
+
+    @staticmethod
+    def squash(it: Iterator[Command]) -> Command:
+        by_type = {type(i): i for i in it}
+        if len(by_type) == 1:
+            return by_type.popitem()[1]
+        elif len(by_type) == 0:
+            return NO_OP
+        else:
+            return Chain(by_type.values())
+
+
+@add_slots
+@dataclass(frozen=True)
+class SetFont(Command):
+    font: Font
+    size: Pt
+
+    def apply(self, s: State) -> State:
+        return replace(s, font=self.font, size=self.size)
+
+    def __iter__(self) -> Iterator[bytes]:
+        yield b"/%b %g Tf\n" % (self.font.id, self.size)
+
+
+@add_slots
+@dataclass(frozen=True)
+class SetLineSpacing(Command):
+    value: float
+
+    def apply(self, s: State) -> State:
+        return replace(s, line_spacing=self.value)
+
+    def __iter__(self) -> Iterator[bytes]:
+        # We don't actually emit anything here,
+        # because its value is already used to calculate the leading space
+        # on a per-line basis.
+        return iter(())
+
+
+@add_slots
+@dataclass(frozen=True)
+class SetColor(Command):
+    value: RGB
+
+    def apply(self, s: State) -> State:
+        return replace(s, color=self.value)
+
+    def __iter__(self) -> Iterator[bytes]:
+        yield b"%g %g %g rg\n" % self.value.astuple()
+
+
+@add_slots
+@dataclass(frozen=True)
+class State(Streamable):
+    """Text state, see PDF 32000-1:2008, table 105"""
+
+    font: Font
+    size: Pt
+    color: RGB
+    line_spacing: float
+
+    lead: Pt = field(init=False)  # cached calculation because it's used a lot
+
+    def __iter__(self) -> Iterator[bytes]:
+        yield from SetFont(self.font, self.size)
+        yield from SetColor(self.color)
+
+    def __post_init__(self) -> None:
+        setattr_frozen(self, "lead", self.size * self.line_spacing)
+
+    def kerns_with(self, other: State, /) -> bool:
+        return self.font == other.font and self.size == other.size
 
 
 def splitlines(it: Iterable[Stretch]) -> Iterator[NonEmtpyIterator[Stretch]]:
@@ -51,19 +165,85 @@ def splitlines(it: Iterable[Stretch]) -> Iterator[NonEmtpyIterator[Stretch]]:
 @add_slots
 @dataclass(frozen=True)
 class Stretch:
-    cmd: StateChange
+    cmd: Command
     txt: str
 
 
 @add_slots
 @dataclass(frozen=True)
-class Line(Command):
-    segments: Sequence[StateChange | Kerned]
-    space: Pt
+class Line(Streamable):
+    segments: Sequence[Command | GaugedString]
+    free_space: Pt  # space left on the line that can be filled when justifying
+    width: Pt
     lead: Pt
 
-    def into_stream(self) -> Iterator[bytes]:
-        return flatten(map(methodcaller("into_stream"), self.segments))
+    def __iter__(self) -> Iterator[bytes]:
+        return flatten(self.segments)
+
+    def indent(self, amount: Pt) -> Line:
+        if not (amount and self.segments):
+            return self
+        # TODO: a better way to express in typing that the first item is
+        # always a GaugedString.
+        head = self.segments[0]
+        assert isinstance(head, GaugedString)
+        return Line(
+            [head.indent(amount), *self.segments[1:]],
+            self.free_space,
+            self.width + amount,
+            self.lead,
+        )
+
+    def justify(self) -> Line:
+        breaks = [
+            (
+                [m.start() for m in _WORDBREAK_RE.finditer(g.txt)],
+                g.state.size,
+            )
+            for g in self.segments
+            if isinstance(g, GaugedString)
+        ]
+        try:
+            # The additional width per word break, weighted by the font size,
+            # which is needed to justify the text.
+            width_per_break = self.free_space / sum(
+                len(matches) * size for matches, size in breaks
+            )
+        except ZeroDivisionError:
+            return self  # No word breaks, no justification.
+        iterbreaks = map(first, breaks)
+        return Line(
+            [
+                s
+                if isinstance(s, Command)
+                else _add_kerns(
+                    s,
+                    next(iterbreaks),
+                    width_per_break * TEXTSPACE_TO_GLYPHSPACE,
+                )
+                for s in self.segments
+            ],
+            0,
+            self.width + self.free_space,
+            self.lead,
+        )
+
+
+def _add_kerns(
+    s: GaugedString, pos: Sequence[Pos], amount: GlyphPt
+) -> GaugedString:
+    kerns = [
+        (i, sum(x for _, x in spaces))
+        for i, spaces in groupby(
+            merge(s.kern, ((p, amount) for p in pos)), key=first
+        )
+    ]
+    return GaugedString(
+        s.txt,
+        kerns,
+        s.width + len(pos) * amount * s.state.size / TEXTSPACE_TO_GLYPHSPACE,
+        s.state,
+    )
 
 
 @add_slots
@@ -79,7 +259,7 @@ class LineFinished:
 @dataclass(frozen=True)
 class MixedWord:
     head: GaugedString
-    tail: Sequence[StateChange | GaugedString]
+    tail: Sequence[Command | GaugedString]
     last: Char | None
     width: Pt
     lead: Pt
@@ -88,15 +268,15 @@ class MixedWord:
     @staticmethod
     def start(head: GaugedString) -> MixedWord:
         return MixedWord(
-            head, (), head.last, head.width, head.state.lead, head.state
+            head, (), head.last(), head.width, head.state.lead, head.state
         )
 
-    def segments(self) -> Iterable[StateChange | GaugedString]:
+    def segments(self) -> Iterable[Command | GaugedString]:
         yield self.head
         yield from self.tail
 
     def without_init_kern(self) -> MixedWord:
-        kern = self.head.txt.kerning
+        kern = self.head.kern
         if kern:
             firstkern_pos, firstkern = kern[0]
             if firstkern_pos == 0:
@@ -105,28 +285,16 @@ class MixedWord:
                 ) / TEXTSPACE_TO_GLYPHSPACE
                 return replace(
                     self,
-                    head=replace(
-                        self.head, txt=Kerned(self.head.txt.content, kern[1:])
-                    ),
+                    head=replace(self.head, kern=kern[1:]),
                     width=self.width - delta,
                 )
         return self
 
 
-def _finalize(
-    s: Iterable[StateChange | GaugedString],
-) -> Iterable[StateChange | Kerned]:
-    for item in s:
-        if isinstance(item, GaugedString):
-            yield item.txt
-        else:
-            yield item
-
-
-def _trim_and_finalize(
-    s: Sequence[StateChange | GaugedString],
-) -> tuple[Sequence[StateChange | Kerned], Pt]:
-    result: list[Kerned | StateChange] = []
+def _trim_last(
+    s: Sequence[Command | GaugedString],
+) -> tuple[Sequence[Command | GaugedString], Pt]:
+    result: list[Command | GaugedString] = []
     it = iter(reversed(s))
     trim = 0.0
     for item in it:
@@ -137,7 +305,7 @@ def _trim_and_finalize(
         else:
             result.append(item)
 
-    result.extend(_finalize(it))
+    result.extend(it)
     result.reverse()
     return result, trim
 
@@ -145,11 +313,11 @@ def _trim_and_finalize(
 @add_slots
 @dataclass(frozen=True)
 class PartialLine:
-    body: Sequence[StateChange | GaugedString]
+    body: Sequence[Command | GaugedString]
 
     # The widths include any pending content.
-    # Note we need to track both the width of the line and the space
-    # remaining on the line. This is because space can be infinite.
+    # FUTURE: tracking either one of these should be enough.
+    #         one can be directly derived from the other at completion time.
     width: Pt
     space: Pt
 
@@ -188,7 +356,7 @@ class PartialLine:
                     self.pending.lead if self.pending else 0,
                 ),
                 content.state,
-                pending.last if pending else content.last,
+                pending.last() if pending else content.last(),
             )
 
         elif self.pending:
@@ -199,7 +367,7 @@ class PartialLine:
                 MixedWord(
                     self.pending.head,
                     [*self.pending.tail, pending],
-                    pending.last,
+                    pending.last(),
                     self.pending.width + pending.width,
                     max(pending.state.lead, self.pending.lead),
                     pending.state,
@@ -208,7 +376,7 @@ class PartialLine:
                 else self.pending,
                 self.lead,
                 self.body_state,
-                pending.last if pending else self.pending.last,
+                pending.last() if pending else self.pending.last,
             )
         else:
             return PartialLine(
@@ -218,57 +386,57 @@ class PartialLine:
                 MixedWord.start(pending) if pending else None,
                 self.lead,
                 self.body_state,
-                pending.last if pending else self.last,
+                pending.last() if pending else self.last,
             )
 
     def finish_excl_pending(self) -> Line:
-        strings, trim = _trim_and_finalize(self.body)
+        strings, trim = _trim_last(self.body)
+        diff = (self.pending.width if self.pending else 0) + trim
         return Line(
             strings,
-            self.free_space()
-            + (self.pending.width if self.pending else 0)
-            + trim,
+            self.free_space() + diff,
+            self.width - diff,
             self.lead,
         )
 
     def finish(self, content: GaugedString) -> Line:
-        # FUTURE: unify with self.add?
-        # Currently test fails for `return self.add(content, None).close()`
         if self.pending:
             return Line(
                 [
-                    *_finalize(chain(self.body, self.pending.segments())),
-                    content.txt,
+                    *chain(self.body, self.pending.segments()),
+                    content,
                 ],
                 self.free_space() - content.width,
+                self.width + content.width,
                 max(self.lead, content.state.lead, self.pending.lead),
             )
         else:
             return Line(
-                [*_finalize(self.body), content.txt],
+                [*self.body, content],
                 self.free_space() - content.width,
+                self.width + content.width,
                 max(self.lead, content.state.lead),
             )
 
-    def close(self) -> Line:
+    def close(self, last_in_paragraph: bool) -> Line:
         if self.pending:
-            strings, trim = _trim_and_finalize(
-                [*self.body, *self.pending.segments()]
-            )
+            segments, trim = _trim_last([*self.body, *self.pending.segments()])
             return Line(
-                strings,
-                self.free_space() + trim,
+                segments,
+                0 if last_in_paragraph else self.free_space() + trim,
+                self.width - trim,
                 max(self.lead, self.pending.lead),
             )
         else:
-            strings, trim = _trim_and_finalize(self.body)
+            segments, trim = _trim_last(self.body)
             return Line(
-                strings,
-                self.free_space() + trim,
+                segments,
+                0 if last_in_paragraph else self.free_space() + trim,
+                self.width - trim,
                 self.lead or self.body_state.lead,
             )
 
-    def add_cmd(self, cmd: StateChange) -> PartialLine:
+    def add_cmd(self, cmd: Command) -> PartialLine:
         state_new = cmd.apply(state_old := self.state())
         last = self.last if state_new.kerns_with(state_old) else None
         if self.pending:
@@ -308,7 +476,7 @@ class Cursor:
     pos: Pos
 
     def line(self, s: PartialLine, /) -> LineFinished | PartialLine:
-        match = break_at_width(
+        match = break_(
             self.txt,
             s.state(),
             s.space - s.width,
@@ -319,7 +487,7 @@ class Cursor:
         if isinstance(match, Exhausted):
             return s.add(match.content, match.tail)
         else:
-            if match.end == self.pos:
+            if match.end == self.pos:  # i.e. no room for any content
                 return LineFinished(
                     s.finish_excl_pending(),
                     self,
@@ -328,7 +496,9 @@ class Cursor:
                 )
             else:
                 return LineFinished(
-                    s.finish(match.content) if match.content else s.close(),
+                    s.finish(match.content)
+                    if match.content
+                    else s.close(last_in_paragraph=False),
                     Cursor(self.txt, match.end),
                     s.state(),
                     None,
@@ -352,7 +522,7 @@ class Exhausted:
 _end = methodcaller("end")
 
 
-def break_at_width(
+def break_(
     txt: str,
     state: State,
     space: Pt,
@@ -380,13 +550,7 @@ def break_at_width(
         content = (
             None
             if start == pos
-            else GaugedString(
-                Kerned(state.font.encode(txt[start:pos]), kerning),
-                width,
-                state,
-                # Here, prev is always set by the loop (so is not None)
-                prev,  # type: ignore[arg-type]
-            )
+            else GaugedString(txt[start:pos], kerning, width, state)
         )
         if pos == len(txt):
             return Exhausted(content, None)
@@ -471,7 +635,9 @@ class Wrapper:
             try:
                 stretch = next(queue)
             except StopIteration:
-                return result.close(), WrapDone(result.state())
+                return result.close(last_in_paragraph=True), WrapDone(
+                    result.state()
+                )
             result = Cursor(stretch.txt, 0).line(result.add_cmd(stretch.cmd))
         return result.line, Wrapper(
             queue, result.cursor, result.state, result.pending
@@ -513,26 +679,12 @@ class WrapDone:
     state: State
 
 
-@add_slots
-@dataclass(frozen=True)
-class Kerned:
-    content: bytes
-    kerning: Sequence[Kern]
-
-    def into_stream(self) -> Iterable[bytes]:
-        if self.kerning:
-            yield from Array(
-                _encode_kerning(self.content, self.kerning)
-            ).write()
-            yield b" TJ\n"
-        else:
-            yield from LiteralString(self.content).write()
-            yield b" Tj\n"
-
-
 def _encode_kerning(
-    s: bytes, kerning: NonEmptySequence[Kern]
+    txt: str,
+    kerning: NonEmptySequence[Kern],
+    f: Font,
 ) -> Iterable[LiteralString | Real]:
+    encoded = f.encode(txt)
     index_prev, space = kerning[0]
 
     if index_prev == 0:  # i.e. the case where we kern before any text
@@ -541,35 +693,56 @@ def _encode_kerning(
 
     index_prev = index = 0
     for index, space in kerning:
-        yield LiteralString(s[index_prev:index])
+        index *= f.encoding_width
+        yield LiteralString(encoded[index_prev:index])
         yield Real(-space)
         index_prev = index
 
-    yield LiteralString(s[index:])
+    yield LiteralString(encoded[index:])
 
 
 @add_slots
 @dataclass(frozen=True)
-class GaugedString:
-    txt: Kerned
+class GaugedString(Streamable):
+    txt: str
+    kern: Sequence[Kern]
     width: Pt
     state: State
-    last: Char
+
+    def last(self) -> Char | None:
+        try:
+            return self.txt[-1]
+        except IndexError:
+            return None
 
     @staticmethod
     def build(s: str, state: State, prev: Char | None) -> GaugedString:
-        assert s
         font = state.font
-        kerning = list(font.kern(s, prev, 0))
+        kern = list(font.kern(s, prev, 0))
         return GaugedString(
-            Kerned(font.encode(s), kerning),
-            (
-                font.width(s)
-                + sum(map(second, kerning)) / TEXTSPACE_TO_GLYPHSPACE
-            )
+            s,
+            kern,
+            # TODO: should we also take into account the font's size?
+            (font.width(s) + sum(map(second, kern)) / TEXTSPACE_TO_GLYPHSPACE)
             * state.size,
             state,
-            s[-1],
+        )
+
+    def indent(self, amount: Pt) -> GaugedString:
+        # We only indent the first word of a line -- which never has Kerning
+        # on the first letter.
+        try:
+            assert self.kern[0][0] != 0
+        except IndexError:  # pragma: no cover
+            pass
+        return GaugedString(
+            self.txt,
+            [
+                (0, amount / self.state.size * TEXTSPACE_TO_GLYPHSPACE),
+                *self.kern,
+            ],
+            self.width + amount,
+            self.state,
         )
 
     @staticmethod
@@ -588,52 +761,57 @@ class GaugedString:
             None
             if start == trimpos
             else GaugedString(
-                Kerned(state.font.encode(txt[start:trimpos]), kern),
+                txt[start:trimpos],
+                kern,
                 width - trim,
                 state,
-                txt[trimpos - 1],
             )
         )
 
-    def without_trailing_space(self) -> tuple[Kerned, Pt]:
-        trim, kerning = _trim(
-            self.last, len(self.txt.content), self.txt.kerning, self.state, 0
-        )
+    def without_trailing_space(self) -> tuple[GaugedString, Pt]:
+        trim, kern = _trim(self.txt, self.kern, self.state, 0)
         if trim:
             return (
-                Kerned(
-                    self.txt.content[: -self.state.font.encoding_width],
-                    kerning,
+                GaugedString(
+                    self.txt[:-1], kern, self.width - trim, self.state
                 ),
                 trim,
             )
         else:
-            return self.txt, 0
+            return self, 0
+
+    def __iter__(self) -> Iterator[bytes]:
+        if self.kern:
+            yield from Array(
+                _encode_kerning(self.txt, self.kern, self.state.font)
+            ).write()
+            yield b" TJ\n"
+        else:
+            yield from LiteralString(self.state.font.encode(self.txt)).write()
+            yield b" Tj\n"
 
 
 def _size_string(
     s: str, state: State, prev: Char | None, offset: Pos
 ) -> tuple[Pt, Sequence[Kern], Pt]:
     font = state.font
-    kerning = list(font.kern(s, prev, offset * font.encoding_width))
+    kerning = list(font.kern(s, prev, offset))
     return (
         (font.width(s) + sum(map(second, kerning)) / TEXTSPACE_TO_GLYPHSPACE)
         * state.size,
         kerning,
-        _trim(s[-1], len(s) * font.encoding_width, kerning, state, offset)[0],
+        _trim(s, kerning, state, offset)[0],
     )
 
 
 def _trim(
-    last: Char, maxpos: int, kern: Sequence[Kern], s: State, offset: Pos
+    txt: str, kern: Sequence[Kern], s: State, offset: Pos
 ) -> tuple[Pt, Sequence[Kern]]:
-    if last == " ":
+    if txt and txt[-1] == " ":
         trimmable_space = s.font.spacewidth
         if kern:
             lastkern_pos, lastkern = kern[-1]
-            if (
-                lastkern_pos - offset * s.font.encoding_width
-            ) + s.font.encoding_width == maxpos:
+            if (lastkern_pos - offset) + 1 == len(txt):
                 trimmable_space += lastkern
                 kern = kern[:-1]
         return trimmable_space * s.size / TEXTSPACE_TO_GLYPHSPACE, kern
