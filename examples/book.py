@@ -64,7 +64,7 @@ TITLE_PAGE = Page(
             align="center",
         ),
         Text(
-            (PAGESIZE.x / 2, 100),
+            (PAGESIZE.x / 2, 335),
             "F. Scott Fitzgerald",
             Style(size=14, italic=True),
             align="center",
@@ -85,11 +85,11 @@ _CHAPTER_NUMERALS = set("I II III IV V VI VII VIII IX X".split())
 
 def chapters() -> Iterable[Sequence[Paragraph | Rule]]:
     "Book content grouped by chapters"
-    buffer: list[Paragraph | Rule] = [Paragraph("Chapter I\n\n", HEADING)]
+    buffer: list[Paragraph | Rule] = [Paragraph("Chapter I\n", HEADING)]
     for p in PARAGRAPHS:
         if p.strip() in _CHAPTER_NUMERALS:
             yield buffer
-            buffer = [Paragraph(f"Chapter {p.strip()}\n\n", HEADING)]
+            buffer = [Paragraph(f"Chapter {p.strip()}\n", HEADING)]
         elif p.startswith("------"):
             buffer.append(Rule("#aaaaaa", (20, 10, 10)))
         else:

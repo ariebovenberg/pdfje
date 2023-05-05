@@ -51,7 +51,6 @@ class myRightClass:
 def collect_unique_kern_lookup_indexes(featureRecord):
     unique_kern_lookups = []
     for featRecItem in featureRecord:
-        # print(featRecItem.FeatureTag)
         # GPOS feature tags (e.g. kern, mark, mkmk, size) of each ScriptRecord
         if featRecItem.FeatureTag == kKernFeatureTag:
             feature = featRecItem.Feature

@@ -203,6 +203,7 @@ class TestAutopage:
                     font=helvetica,
                     italic=True,
                     bold=True,
+                    hyphens=None,
                 ),
                 align="center",
             ),
@@ -218,7 +219,7 @@ class TestAutopage:
                                     italic,
                                     bold | italic,
                                     regular,
-                                    Style(size=4, color=blue),
+                                    Style(size=4, color=blue, hyphens=None),
                                 ]
                             )
                         ),
@@ -244,8 +245,22 @@ class TestAutopage:
 
     def test_extremely_large_text_handled_without_issue(self, outfile):
         Document(
-            [AutoPage([Paragraph(LOREM_IPSUM)])],
-            style=Style(font=times_roman, size=1000, line_spacing=0.9),
+            [
+                AutoPage(
+                    [
+                        Paragraph(
+                            LOREM_IPSUM[:200],
+                            style=Style(
+                                font=times_roman, size=1000, line_spacing=0.9
+                            ),
+                        ),
+                        Paragraph(
+                            LOREM_IPSUM[200:],
+                            style=Style(size=300, line_spacing=0.9),
+                        ),
+                    ]
+                )
+            ],
         ).write(outfile)
 
 
@@ -286,7 +301,11 @@ def test_draw(outfile):
                     Circle((A4.x * 0.8, 200), 5, stroke=red),
                     Text(
                         (A4.x * 0.8, 200),
-                        "right-aligned text\nis also\npossible...",
+                        [
+                            "right-aligned text\nis ",
+                            Span("also\nposs", italic),
+                            "ible...",
+                        ],
                         Style(size=20, color="#ff0099"),
                         align="right",
                     ),

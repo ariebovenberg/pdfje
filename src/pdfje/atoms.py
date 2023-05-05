@@ -90,9 +90,11 @@ class Real(Atom):
         return (b"%g" % self.value,)
 
 
+# NOTE: this name avoids confusion with typing.LiteralString
 @add_slots
 @dataclass(frozen=True)
-class LiteralString(Atom):
+class LiteralStr(Atom):
+    "See PDF32000-1:2008 (7.3.4.2)"
     value: bytes
 
     # FUTURE: support UTF-16BOM, but in a way that makes it explicit that
@@ -249,7 +251,7 @@ _STRING_ESCAPES = {
 }
 
 
-def _replace_with_escape(m: re.Match) -> bytes:
+def _replace_with_escape(m: re.Match[bytes]) -> bytes:
     return _STRING_ESCAPES[m.group()]
 
 

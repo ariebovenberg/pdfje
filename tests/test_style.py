@@ -6,14 +6,16 @@ from pdfje.fonts import helvetica, times_roman
 from pdfje.fonts.registry import Registry
 from pdfje.layout import Paragraph
 from pdfje.style import Span, Style
-from pdfje.typeset import (
+from pdfje.typeset.common import (
     NO_OP,
     Chain,
     SetColor,
     SetFont,
+    SetHyphens,
     SetLineSpacing,
     Stretch,
 )
+from pdfje.typeset.hyphens import default_hyphenator, never_hyphenate
 from tests.common import eq_iter
 
 
@@ -45,6 +47,12 @@ class TestStyle:
         assert Style.parse("#4591BB") == Style(color="#4591BB")
         with pytest.raises(TypeError):
             Style.parse(1)  # type: ignore
+
+    def test_init(self):
+        s = Style(italic=True, color=RED)
+        assert s.line_spacing is None
+        assert s.font is None
+        assert s.hyphens is None
 
 
 class TestStyleLikeUnion:
@@ -120,6 +128,7 @@ class TestStyleDiff:
                     color=STYLE.color,
                     size=STYLE.size,
                     line_spacing=STYLE.line_spacing,
+                    hyphens=STYLE.hyphens,
                 ).diff(reg, STYLE)
             )
             == []
@@ -160,6 +169,17 @@ class TestStyleDiff:
             SetLineSpacing(1.5)
         ]
 
+    def test_hyphens_change(self, reg: Registry):
+        assert list(Style(hyphens=default_hyphenator).diff(reg, STYLE)) == []
+        assert list(Style(hyphens=never_hyphenate).diff(reg, STYLE)) == [
+            SetHyphens(never_hyphenate)
+        ]
+        assert list(
+            Style(hyphens=default_hyphenator).diff(
+                reg, STYLE | Style(hyphens=never_hyphenate)
+            )
+        ) == [SetHyphens(default_hyphenator)]
+
     def test_combined_change(self, reg: Registry):
         assert list(Style(font=times_roman, color=GREEN).diff(reg, STYLE)) == [
             SetFont(reg.font(times_roman, False, True), 12),
@@ -194,12 +214,33 @@ class TestFlatten:
             Stretch(NO_OP, " than ugly."),
         ]
 
+    def test_hyphenate_toggle(self, reg: Registry):
+        par = Paragraph(
+            [
+                "Beautiful is better than ",
+                Span(" ugly.", Style(hyphens=None)),
+                " Explicit is better than implicit.",
+            ]
+        )
+        result = list(par.flatten(reg, STYLE))
+        assert result == [
+            Stretch(NO_OP, "Beautiful is better than "),
+            Stretch(
+                SetHyphens(never_hyphenate),
+                " ugly.",
+            ),
+            Stretch(
+                SetHyphens(default_hyphenator),
+                " Explicit is better than implicit.",
+            ),
+        ]
+
     def test_nested(self, reg: Registry):
         result = list(
             Paragraph(
                 [
                     "Beautiful is better than ",
-                    Span(" ugly.", Style(color=GREEN)),
+                    Span(" ugly.", Style(color=GREEN, hyphens=None)),
                     Span(
                         [
                             " Explicit is better ",
@@ -224,11 +265,18 @@ class TestFlatten:
             Stretch(
                 SetFont(helvetica.italic, 14), "Beautiful is better than "
             ),
-            Stretch(SetColor(GREEN), " ugly."),
+            Stretch(
+                Chain(eq_iter([SetColor(GREEN), SetHyphens(never_hyphenate)])),
+                " ugly.",
+            ),
             Stretch(
                 Chain(
                     eq_iter(
-                        [SetColor(RED), SetFont(helvetica.bold_italic, 20)]
+                        [
+                            SetColor(RED),
+                            SetHyphens(default_hyphenator),
+                            SetFont(helvetica.bold_italic, 20),
+                        ]
                     )
                 ),
                 " Explicit is better ",

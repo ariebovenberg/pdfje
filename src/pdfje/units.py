@@ -20,8 +20,11 @@ mm: Callable[[float], Pt] = partial(mul, 2.8346456692913385)
 mm.__doc__ = "Convert millimeters to points"
 pc: Callable[[float], Pt] = partial(mul, 12)
 pc.__doc__ = "Convert picas to points"
-pt: Callable[[float], Pt] = lambda x: x
-pt.__doc__ = "No-op conversion. Can be used to make units explicit."
+
+
+def pt(x: float) -> Pt:
+    "No-op conversion. Can be used to make units explicit."
+    return x
 
 
 A0 = XY(2380, 3368)

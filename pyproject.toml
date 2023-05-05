@@ -22,9 +22,11 @@ keywords = ["pdf"]
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0"
 fonttools = {version="^4.38.0", optional=true}
+pyphen = {version=">=0.13.0", optional=true}
 
 [tool.poetry.extras]
 fonts = ["fonttools"]
+hyphens = ["pyphen"]
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.0.1"

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import Iterable, Literal, final
+from operator import attrgetter
+from typing import Callable, Iterable, Iterator, Literal, final
 
 from .common import (
     RGB,
@@ -16,11 +17,10 @@ from .common import (
     setattr_frozen,
 )
 from .fonts.registry import Registry
-from .layout import _render_text
 from .style import Span, Style, StyledMixin, StyleFull, StyleLike
-from .typeset import Command, GaugedString
-from .typeset import Line as TextLine
-from .typeset import State, Stretch, splitlines
+from .typeset.common import Command, State, Stretch, splitlines
+from .typeset.lines import Line as TextLine
+from .typeset.words import parse as parse_words
 
 __all__ = [
     "Circle",
@@ -357,35 +357,82 @@ class Text(Drawing, StyledMixin):
         setattr_frozen(self, "content", content)
         setattr_frozen(self, "style", Style.parse(style))
         setattr_frozen(self, "align", Align.parse(align))
+        if self.align is Align.JUSTIFY:
+            raise NotImplementedError(
+                "Justified alignment not implemented for explicitly "
+                "positioned text."
+            )
 
     def render(self, r: Registry, s: StyleFull, /) -> Streamable:
         state = s.as_state(r)
-        yield from _render_text(
-            self.loc,
-            _into_lines(self.flatten(r, s), state),
-            state,
-            self.align,
-            0,
+        yield b"BT\n%g %g Td\n" % self.loc.astuple()
+        yield from state
+        yield from _pick_renderer(self.align)(
+            into_words(splitlines(self.flatten(r, s)), state), state.lead, 0
         )
+        yield b"ET\n"
 
 
-def _into_lines(spans: Iterable[Stretch], state: State) -> Iterable[TextLine]:
-    for stretches in splitlines(spans):
-        line, state = _as_line(stretches, state)
-        yield line
+def into_words(
+    split: Iterable[Iterable[Stretch]], state: State
+) -> Iterator[tuple[Command, TextLine]]:
+    for s in split:
+        cmd, [*words] = parse_words(s, state)
+        yield (
+            cmd,
+            TextLine(
+                tuple(words),
+                max(w.lead() for w in words),
+                sum(w.width() for w in words),
+                0,
+            ),
+        )
+        state = words[-1].state
 
 
-def _as_line(spans: Iterable[Stretch], state: State) -> tuple[TextLine, State]:
-    lead = width = 0.0
-    segments: list[Command | GaugedString] = []
-    prev = None
+def _render_left(
+    lines: Iterable[tuple[Command, TextLine]], lead: Pt, _: Pt
+) -> Iterator[bytes]:
+    yield b"%g TL\n" % lead
+    for cmd, ln in lines:
+        yield from cmd
+        if ln.lead == lead:
+            yield b"T*\n"
+        else:
+            yield b"0 %g TD\n" % -ln.lead
+            lead = ln.lead
+        yield from ln
 
-    for span in spans:
-        state = span.cmd.apply(state)
-        lead = max(lead, state.lead)
-        gauged = GaugedString.build(span.txt, state, prev)
-        prev = gauged.last() or prev
-        segments.extend([span.cmd, gauged])
-        width += gauged.width
 
-    return TextLine(segments, 0, width, lead), state
+def _render_centered(
+    lines: Iterable[tuple[Command, TextLine]], _: Pt, width: Pt
+) -> Iterator[bytes]:
+    for cmd, ln in lines:
+        yield from cmd
+        yield b"%g %g TD\n" % ((width - ln.width) / 2, -ln.lead)
+        yield from ln
+        width = ln.width
+
+
+def _render_right(
+    lines: Iterable[tuple[Command, TextLine]], _: Pt, width: Pt
+) -> Iterator[bytes]:
+    for cmd, ln in lines:
+        yield from cmd
+        yield b"%g %g TD\n" % ((width - ln.width), -ln.lead)
+        yield from ln
+        width = ln.width
+
+
+_pick_renderer: Callable[
+    [Align],
+    Callable[[Iterable[tuple[Command, TextLine]], Pt, Pt], Iterable[bytes]],
+] = pipe(
+    attrgetter("value"),
+    [
+        _render_left,
+        _render_centered,
+        _render_right,
+        _render_left,
+    ].__getitem__,
+)

@@ -47,8 +47,8 @@ _CID = int  # CharacterID. 16-bit ID uniquely identifying a character in a PDF
 _CID_MAX = 0xFFFF  # character IDs are stored as 16-bit values
 _REPLACEMENT_GLYPH: _GlyphName = ".notdef"
 _CIDSYS_INFO = atoms.Dictionary(
-    (b"Registry", atoms.LiteralString(b"Adobe")),
-    (b"Ordering", atoms.LiteralString(b"UCS")),
+    (b"Registry", atoms.LiteralStr(b"Adobe")),
+    (b"Ordering", atoms.LiteralStr(b"UCS")),
     (b"Supplement", atoms.Int(0)),
 )
 
@@ -147,9 +147,12 @@ if TYPE_CHECKING or HAS_FONTTOOLS:
             )
 
         def kern(
-            self, s: str, /, prev: Char | None, offset: int
+            self, s: str, /, prev: Char | None
         ) -> Iterable[tuple[int, GlyphPt]]:
-            return kern(self.kerning, s, prev, offset) if self.kerning else ()
+            return kern(self.kerning, s, prev) if self.kerning else ()
+
+        def charkern(self, a: Char, b: Char, /) -> GlyphPt:
+            return self.kerning((a, b)) if self.kerning else 0
 
         def to_objects(self, obj_id: atoms.ObjectID) -> Iterable[atoms.Object]:
             # PDF only supports 16-bit character/glyph entries,

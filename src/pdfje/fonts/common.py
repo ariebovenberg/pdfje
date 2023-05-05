@@ -50,9 +50,11 @@ class Font(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def kern(
-        self, s: str, /, prev: Char | None, offset: int
-    ) -> Iterable[tuple[int, GlyphPt]]:
+    def kern(self, s: str, /, prev: Char | None) -> Iterable[Kern]:
+        ...
+
+    @abc.abstractmethod
+    def charkern(self, a: Char, b: Char, /) -> GlyphPt:
         ...
 
 
@@ -106,7 +108,8 @@ class TrueType:
     # circular import. The implementation is patched into the class
     # in the `style` module.
     if TYPE_CHECKING:  # pragma: no cover
-        from ..style import HexColor, Style, StyleLike
+        from ..common import HexColor
+        from ..style import Style, StyleLike
 
         def __or__(self, _: StyleLike, /) -> Style:
             ...
@@ -136,7 +139,8 @@ class BuiltinTypeface:
     # circular import. The implementation is patched into the class
     # in the `style` module.
     if TYPE_CHECKING:  # pragma: no cover
-        from ..style import HexColor, Style, StyleLike
+        from ..common import HexColor
+        from ..style import Style, StyleLike
 
         def __or__(self, _: StyleLike, /) -> Style:
             ...
@@ -180,10 +184,11 @@ class BuiltinFont(Font):
         # FUTURE: normalize unicode to allow better unicode representation
         return s.encode("cp1252", errors="replace")
 
-    def kern(
-        self, s: str, /, prev: Char | None, offset: int
-    ) -> Iterable[tuple[int, GlyphPt]]:
-        return kern(self.kerning, s, prev, offset) if self.kerning else ()
+    def kern(self, s: str, /, prev: Char | None) -> Iterable[Kern]:
+        return kern(self.kerning, s, prev) if self.kerning else ()
+
+    def charkern(self, a: Char, b: Char) -> GlyphPt:
+        return self.kerning((a, b)) if self.kerning else 0
 
     def to_resource(self) -> atoms.Dictionary:
         return atoms.Dictionary(
@@ -202,10 +207,9 @@ def kern(
     table: KerningTable,
     s: str,
     prev: Char | None,
-    offset: int,
 ) -> Iterable[Kern]:
     for i, pair in zip(
-        count(offset + (not prev)),
+        count(not prev),
         pairwise(chain(prev, s) if prev else s),
     ):
         if space := table(pair):

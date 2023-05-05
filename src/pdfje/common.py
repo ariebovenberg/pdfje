@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 from dataclasses import dataclass, fields
 from functools import wraps
-from itertools import chain
+from itertools import chain, tee
 from operator import itemgetter
 from typing import (
     TYPE_CHECKING,
@@ -48,6 +48,29 @@ def always(v: T) -> Callable[..., T]:
 
 
 setattr_frozen = object.__setattr__
+
+
+class BranchableIterator(Iterator[T]):
+    __slots__ = ("_it",)
+
+    def __init__(self, it: Iterable[T]) -> None:
+        self._it = iter(it)
+
+    def __iter__(self) -> BranchableIterator[T]:
+        return self
+
+    def __next__(self) -> T:
+        return next(self._it)
+
+    def branch(self) -> BranchableIterator[T]:
+        # Performance note: as branches are garbage collected,
+        # the tee() objects appear to properly free their memory.
+        self._it, branch = tee(self._it)
+        return BranchableIterator(branch)
+
+    def prepend(self, i: T) -> BranchableIterator[T]:
+        self._it = prepend(i, self._it)
+        return self
 
 
 # adapted from github.com/ericvsmith/dataclasses
@@ -344,21 +367,24 @@ magenta = RGB(1, 0, 1)
 cyan = RGB(0, 1, 1)
 
 
+Tcall = TypeVar("Tcall", bound=Callable[..., Any])
+
+
 # This makes the generator function behave like a "classic coroutine"
 # as described in fluentpython.com/extra/classic-coroutines.
 # Such a coroutine doesn't output anything on the first `yield`.
 # This allows the caller to use the `.send()` method immediately.
-@no_type_check
-def skips_to_first_yield(func: T, /) -> T:
+def skips_to_first_yield(func: Tcall, /) -> Tcall:
     """Decorator which primes a generator func by calling the first next()"""
 
+    @no_type_check
     @wraps(func)
     def primer(*args, **kwargs):
         gen = func(*args, **kwargs)
         next(gen)
         return gen
 
-    return primer
+    return primer  # type: ignore[no-any-return]
 
 
 @add_slots
@@ -463,15 +489,15 @@ def pipe(
 
 @overload  # noqa: F811
 def pipe(
-    __f1: Callable,
-    __f2: Callable,
-    __f3: Callable,
-    __f4: Callable,
-    __f5: Callable,
-    __f6: Callable,
-    __f7: Callable,
-    *__fn: Callable,
-) -> Callable:
+    __f1: Callable[[Any], Any],
+    __f2: Callable[[Any], Any],
+    __f3: Callable[[Any], Any],
+    __f4: Callable[[Any], Any],
+    __f5: Callable[[Any], Any],
+    __f6: Callable[[Any], Any],
+    __f7: Callable[[Any], Any],
+    *__fn: Callable[[Any], Any],
+) -> Callable[[Any], Any]:
     ...
 
 

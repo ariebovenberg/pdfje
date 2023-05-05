@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass, fields
 from itertools import chain
 from typing import (
     TYPE_CHECKING,
@@ -17,17 +17,36 @@ from .common import RGB, HexColor, Pt, add_slots, setattr_frozen
 from .fonts.builtins import helvetica
 from .fonts.common import BuiltinTypeface, TrueType, Typeface
 from .fonts.registry import Registry
-from .typeset import (
+from .typeset.common import (
     Chain,
     Command,
     SetColor,
     SetFont,
+    SetHyphens,
     SetLineSpacing,
     State,
     Stretch,
 )
+from .typeset.hyphens import (
+    Hyphenator,
+    HyphenatorLike,
+    default_hyphenator,
+    parse_hyphenator,
+)
 
 __all__ = ["Style", "Span", "StyleLike"]
+
+
+class _NOT_SET:
+    """Sentinel value for unset style attributes."""
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "NOT_SET"
+
+
+_NOTSET = _NOT_SET()
 
 
 @final
@@ -52,6 +71,9 @@ class Style:
         Color of the text; can be given as a hex string (e.g. ``#ff0000``)
     line_spacing: float
         Line spacing, as a multiplier of the font size.
+    hyphens: ~pyphen.Pyphen | None | ~typing.Callable[[str], ~typing.Iterable[str]]
+        Hyphenation algorithm to use. Passing an explicit ``None`` disables
+        hyphenation.
 
     Example
     -------
@@ -63,7 +85,7 @@ class Style:
     >>> heading = body | Style(size=24, bold=True, color=RGB(0.5, 0, 0))
     >>> # fonts and colors can be used directly in place of styles
     >>> emphasis = times_roman | "#ff0000"
-    """
+    """  # noqa: E501
 
     font: Typeface | None = None
     size: Pt | None = None
@@ -71,6 +93,7 @@ class Style:
     italic: bool | None = None
     color: RGB | None = None
     line_spacing: float | None = None
+    hyphens: Hyphenator | None = None
 
     def __init__(
         self,
@@ -80,6 +103,7 @@ class Style:
         italic: bool | None = None,
         color: RGB | tuple[float, float, float] | HexColor | None = None,
         line_spacing: float | None = None,
+        hyphens: HyphenatorLike | _NOT_SET = _NOTSET,
     ) -> None:
         setattr_frozen(self, "font", font)
         setattr_frozen(self, "size", size)
@@ -87,23 +111,40 @@ class Style:
         setattr_frozen(self, "italic", italic)
         setattr_frozen(self, "line_spacing", line_spacing)
         setattr_frozen(self, "color", color and RGB.parse(color))
+        setattr_frozen(
+            self,
+            "hyphens",
+            None
+            if isinstance(hyphens, _NOT_SET)
+            else parse_hyphenator(hyphens),
+        )
+
+    # Use this instead of replace() to avoid triggering __init__.
+    def _evolve(self, **kwargs: object) -> Style:
+        attrs = {f.name: getattr(self, f.name) for f in fields(self)}
+        attrs.update(kwargs)
+        new = Style.__new__(Style)
+        for k, v in attrs.items():
+            setattr_frozen(new, k, v)
+        return new
 
     def __or__(self, other: StyleLike, /) -> Style:
         if isinstance(other, Style):
-            return Style(
-                other.font or self.font,
-                _fallback(other.size, self.size),
-                _fallback(other.bold, self.bold),
-                _fallback(other.italic, self.italic),
-                other.color or self.color,
-                _fallback(other.line_spacing, self.line_spacing),
+            return self._evolve(
+                font=other.font or self.font,
+                size=_fallback(other.size, self.size),
+                bold=_fallback(other.bold, self.bold),
+                italic=_fallback(other.italic, self.italic),
+                color=other.color or self.color,
+                line_spacing=_fallback(other.line_spacing, self.line_spacing),
+                hyphens=_fallback(other.hyphens, self.hyphens),
             )
         elif isinstance(other, (TrueType, BuiltinTypeface)):
-            return replace(self, font=other)
+            return self._evolve(font=other)
         elif isinstance(other, str):
-            return replace(self, color=RGB.parse(other))
+            return self._evolve(color=RGB.parse(other))
         elif isinstance(other, RGB):
-            return replace(self, color=other)
+            return self._evolve(color=other)
         else:
             return NotImplemented  # type: ignore[unreachable]
 
@@ -154,6 +195,8 @@ class Style:
             yield SetColor(self.color)
         if _differs(self.line_spacing, base.line_spacing):
             yield SetLineSpacing(self.line_spacing)
+        if _differs(self.hyphens, base.hyphens):
+            yield SetHyphens(self.hyphens)
 
     def setdefault(self) -> StyleFull:
         return StyleFull.DEFAULT | self
@@ -181,6 +224,7 @@ class StyleFull:
     italic: bool
     color: RGB
     line_spacing: float
+    hyphens: Hyphenator
 
     def __or__(self, s: Style, /) -> StyleFull:
         return StyleFull(
@@ -190,6 +234,7 @@ class StyleFull:
             _fallback(s.italic, self.italic),
             s.color or self.color,
             _fallback(s.line_spacing, self.line_spacing),
+            s.hyphens or self.hyphens,
         )
 
     def as_state(self, fr: Registry) -> State:
@@ -198,6 +243,7 @@ class StyleFull:
             self.size,
             self.color,
             self.line_spacing,
+            self.hyphens,
         )
 
     def diff(self, registry: Registry, base: StyleFull) -> Iterator[Command]:
@@ -217,10 +263,15 @@ class StyleFull:
         if self.line_spacing != base.line_spacing:
             yield SetLineSpacing(self.line_spacing)
 
+        if self.hyphens != base.hyphens:
+            yield SetHyphens(self.hyphens)
+
     DEFAULT: ClassVar[StyleFull]
 
 
-StyleFull.DEFAULT = StyleFull(helvetica, 12, False, False, RGB(0, 0, 0), 1.25)
+StyleFull.DEFAULT = StyleFull(
+    helvetica, 12, False, False, RGB(0, 0, 0), 1.25, default_hyphenator
+)
 
 
 _T = TypeVar("_T")

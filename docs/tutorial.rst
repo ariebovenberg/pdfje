@@ -173,8 +173,8 @@ Single pages
 
 While :class:`~pdfje.AutoPage` positions elements automatically and
 generates pages as needed,
-:class:`~pdfje.Page` objects represent a single page.
-A :class:`~pdfje.Page` requires you to specify exactly where to position each element.
+:class:`~pdfje.Page` objects represent a single page, on which
+each element is positioned explicitly.
 
 Here is an example of a title page for our story, on A5-sized paper:
 
@@ -351,3 +351,31 @@ There are two types of fonts:
         This standard practice is called "subsetting".
       * Any unicode characters for which a font has no representation
         will be displayed as a 'missing character' box.
+
+
+✂️ Hyphenation
+--------------
+
+Hyphenation can be customized by using the optional `Pyphen <https://www.courtbouillon.org/pyphen>`_ dependency.
+
+Install it with:
+
+.. code-block:: bash
+
+  pip install pdfje[hyphens]
+
+To customize hyphenation, pass a :class:`~pyphen.Pyphen` object to the
+:class:`~pdfje.style.Style` constructor:
+
+.. code-block:: python
+
+  from pyphen import Pyphen
+  dutch_hyphens = Pyphen(lang="nl_NL")
+  Span("Lastige lettergrepen!", Style(hyphens=dutch_hyphens))
+
+.. note::
+
+   - If you don't have ``pyphen`` installed, pdfje will use a simple
+     hyphenation algorithm for english text.
+
+   - To disable hyphenation, pass ``hyphens=None`` to the :class:`~pdfje.Style` constructor.

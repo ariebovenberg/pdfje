@@ -13,6 +13,7 @@ from typing import (
     Iterator,
     Literal,
     Sequence,
+    final,
     overload,
 )
 
@@ -60,6 +61,7 @@ class RenderedPage:
         yield i + 1, atoms.Stream(self.stream)
 
 
+@final
 @add_slots
 @dataclass(frozen=True, init=False)
 class Page:
@@ -162,6 +164,7 @@ def _column(page: XY, margin: SidesLike) -> Column:
     )
 
 
+@final
 @add_slots
 @dataclass(frozen=True, init=False)
 class AutoPage:
@@ -232,6 +235,7 @@ def _as_block(b: str | Block) -> Block:
     return b
 
 
+@final
 @add_slots
 @dataclass(frozen=True, init=False)
 class Document:
@@ -287,11 +291,11 @@ class Document:
         ...
 
     @overload
-    def write(self, target: os.PathLike | str | IO[bytes]) -> None:
+    def write(self, target: os.PathLike[str] | str | IO[bytes]) -> None:
         ...
 
     def write(  # type: ignore[return]
-        self, target: os.PathLike | str | IO[bytes] | None = None
+        self, target: os.PathLike[str] | str | IO[bytes] | None = None
     ) -> Iterator[bytes] | None:
         """Write the document to a given target. If no target is given,
         outputs the binary PDF content iteratively. See examples below.
