@@ -1,4 +1,5 @@
-from pdfje import XY, Polyline, Rect
+from pdfje.common import XY
+from pdfje.draw import Polyline, Rect
 
 NA = NotImplemented
 

@@ -8,10 +8,6 @@ from ..common import add_slots
 from .common import BuiltinFont, BuiltinTypeface, Font, TrueType, Typeface
 from .embed import OBJS_PER_EMBEDDED_FONT, Subset
 
-__all__ = [
-    "Registry",
-]
-
 
 @add_slots
 @dataclass(frozen=True, eq=False)

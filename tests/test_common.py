@@ -1,6 +1,6 @@
 import pytest
 
-from pdfje.common import RGB, XY, Sides, cm, inch, mm, pt
+from pdfje.common import RGB, XY, BranchableIterator, Sides
 
 from .common import approx
 
@@ -140,8 +140,38 @@ class TestSides:
             Sides.parse("foo")  # type: ignore[arg-type]
 
 
-def test_units():
-    assert inch(1) == approx(72)
-    assert cm(1) == approx(28.34645669291339)
-    assert mm(1) == approx(2.8346456692913386)
-    assert pt(1) == 1
+class TestBranchableIterator:
+    def test_empty(self):
+        i: BranchableIterator[int] = BranchableIterator([])
+        assert list(i) == []
+        assert list(i.branch()) == []
+
+    def test_branch_evaluated_after(self):
+        x = BranchableIterator([1, 2, 3])
+        y = x.branch()
+        assert next(x) == 1
+        assert list(x) == [2, 3]
+        assert next(y) == 1
+        assert next(y) == 2
+        assert list(x) == []
+        assert list(y) == [3]
+
+    def test_branch_evaluated_before(self):
+        x = BranchableIterator([1, 2, 3])
+        next(x)
+        y = x.branch()
+        assert list(y) == [2, 3]
+        assert list(x) == [2, 3]
+
+    def test_prepend(self):
+        x = BranchableIterator([1, 2, 3])
+        y = x.branch()
+
+        assert next(y) == 1
+        x.prepend(0)
+        assert next(x) == 0
+        assert list(x) == [1, 2, 3]
+        x.prepend(4)
+        y.prepend(5)
+        assert list(x) == [4]
+        assert list(y) == [5, 2, 3]

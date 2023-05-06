@@ -4,7 +4,7 @@ import abc
 from dataclasses import dataclass, field
 from itertools import chain, count, pairwise
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, final
 
 from .. import atoms
 from ..atoms import ASCII
@@ -50,9 +50,11 @@ class Font(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def kern(
-        self, s: str, /, prev: Char | None, offset: int
-    ) -> Iterable[tuple[int, GlyphPt]]:
+    def kern(self, s: str, /, prev: Char | None) -> Iterable[Kern]:
+        ...
+
+    @abc.abstractmethod
+    def charkern(self, a: Char, b: Char, /) -> GlyphPt:
         ...
 
 
@@ -66,10 +68,11 @@ if not TYPE_CHECKING:  # pragma: no cover
     del Font.spacewidth
 
 
+@final
 @add_slots
 @dataclass(frozen=True, init=False)
 class TrueType:
-    """A TrueType font which will be embedded in the PDF
+    """A TrueType font to be embedded in a PDF
 
     Parameters
     ----------
@@ -105,7 +108,8 @@ class TrueType:
     # circular import. The implementation is patched into the class
     # in the `style` module.
     if TYPE_CHECKING:  # pragma: no cover
-        from ..style import HexColor, Style, StyleLike
+        from ..common import HexColor
+        from ..style import Style, StyleLike
 
         def __or__(self, _: StyleLike, /) -> Style:
             ...
@@ -120,17 +124,11 @@ class TrueType:
             return self.italic if italic else self.regular
 
 
+@final
 @add_slots
 @dataclass(frozen=True, repr=False)
 class BuiltinTypeface:
-    """A typeface that is built into the PDF renderer.
-    Do not instantiate this class, but import its instances:
-
-    .. code-block:: python
-
-       from pdfje import times_roman, helvetica, courier, symbol, zapf_dingbats
-       isinstance(helvetica, BuiltinTypeface)  # True
-    """
+    """A typeface that is built into the PDF renderer."""
 
     regular: BuiltinFont
     bold: BuiltinFont
@@ -141,7 +139,8 @@ class BuiltinTypeface:
     # circular import. The implementation is patched into the class
     # in the `style` module.
     if TYPE_CHECKING:  # pragma: no cover
-        from ..style import HexColor, Style, StyleLike
+        from ..common import HexColor
+        from ..style import Style, StyleLike
 
         def __or__(self, _: StyleLike, /) -> Style:
             ...
@@ -162,6 +161,7 @@ class BuiltinTypeface:
 Typeface = BuiltinTypeface | TrueType
 
 
+@final
 @add_slots
 @dataclass(frozen=True, eq=False)
 class BuiltinFont(Font):
@@ -184,10 +184,11 @@ class BuiltinFont(Font):
         # FUTURE: normalize unicode to allow better unicode representation
         return s.encode("cp1252", errors="replace")
 
-    def kern(
-        self, s: str, /, prev: Char | None, offset: int
-    ) -> Iterable[tuple[int, GlyphPt]]:
-        return kern(self.kerning, s, 1, prev, offset) if self.kerning else ()
+    def kern(self, s: str, /, prev: Char | None) -> Iterable[Kern]:
+        return kern(self.kerning, s, prev) if self.kerning else ()
+
+    def charkern(self, a: Char, b: Char) -> GlyphPt:
+        return self.kerning((a, b)) if self.kerning else 0
 
     def to_resource(self) -> atoms.Dictionary:
         return atoms.Dictionary(
@@ -205,12 +206,10 @@ Kern = tuple[Pos, GlyphPt]
 def kern(
     table: KerningTable,
     s: str,
-    charsize: int,
     prev: Char | None,
-    offset: int,
 ) -> Iterable[Kern]:
     for i, pair in zip(
-        count(offset + (not prev) * charsize, charsize),
+        count(not prev),
         pairwise(chain(prev, s) if prev else s),
     ):
         if space := table(pair):

@@ -1,6 +1,22 @@
 Changelog
 =========
 
+0.5.0 (2023-??-??)
+------------------
+
+**Breaking**
+
+- 🪆 Expose most classes from submodules instead of root
+  (e.g. ``pdfje.Rect`` becomes ``pdfje.draw.Rect``).
+  The new locations can be found in the API documentation.
+- ``Rule`` ``padding`` attribute renamed to ``margin``.
+
+**Added**
+
+- 📰 Support for horizontal alignment and justification of text.
+- 🫸 Support for indenting the first line of a paragraph.
+- ✂️  Automatic hyphenation of text.
+
 0.4.0 (2023-04-10)
 ------------------
 
@@ -10,7 +26,7 @@ can be used to create multi-page/column documents.
 
 **Added**
 
-- ✂️  Automatic layout of multi-style text into lines, columns, and pages
+- 📖 Automatic layout of multi-style text into lines, columns, and pages
 - 🔬 Automatic kerning for supported fonts
 - 🖌️ Support for drawing basic shapes
 - 🎨 Additional text styling options

@@ -9,14 +9,10 @@ Contents
    tutorial.rst
    examples.rst
    api.rst
-
-
-.. include:: ../CHANGELOG.rst
-
+   changelog.rst
 
 Indices and tables
 ==================
 
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search`

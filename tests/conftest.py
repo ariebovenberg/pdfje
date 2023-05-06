@@ -48,10 +48,10 @@ def dejavu() -> TrueType:
 
 
 @pytest.fixture(scope="session")
-def gentium() -> TrueType:
+def crimson() -> TrueType:
     return TrueType(
-        RESOURCES / "fonts/GentiumPlus-Regular.ttf",
-        RESOURCES / "fonts/GentiumPlus-Bold.ttf",
-        RESOURCES / "fonts/GentiumPlus-Italic.ttf",
-        RESOURCES / "fonts/GentiumPlus-BoldItalic.ttf",
+        RESOURCES / "fonts/CrimsonText-Regular.ttf",
+        RESOURCES / "fonts/CrimsonText-Bold.ttf",
+        RESOURCES / "fonts/CrimsonText-Italic.ttf",
+        RESOURCES / "fonts/CrimsonText-BoldItalic.ttf",
     )
