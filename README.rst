@@ -63,7 +63,7 @@ See the roadmap_ for supported features.
 📖 Decent typography
 ~~~~~~~~~~~~~~~~~~~~
 
-Legibility counts — and `Kerning <https://en.wikipedia.org/wiki/Kerning>`_
+Legibility counts — and `kerning <https://en.wikipedia.org/wiki/Kerning>`_
 is a key part of this.
 We've come to expect it everywhere, from web browsers to word processors.
 However, most PDF writers don't support it.
