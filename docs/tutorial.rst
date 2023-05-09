@@ -200,7 +200,7 @@ Here is an example of a title page for our story, on A5-sized paper:
                 (A5.x / 2, 230),
                 "My awesome title",
                 Style(size=30, bold=True),
-                anchor="middle",
+                align="center",
             )
         ],
         size=A5,
@@ -281,7 +281,7 @@ and returns a :class:`~pdfje.Page`.
         # add() creates a copy of the page with the given elements added.
         return template.add(
             # the page number at the bottom of the page
-            Text((A5.x / 2, mm(20)), str(num), Style(size=8), anchor="middle")
+            Text((A5.x / 2, mm(20)), str(num), Style(size=8), align="center")
         )
 
     main_story = AutoPage(..., template=create_page)

@@ -89,7 +89,7 @@ class Page:
 
         .. code-block:: python
 
-            from pdfje import Page, A4, A5, A6, letter, legal, tabloid
+            from pdfje.units import Page, A4, A5, A6, letter, legal, tabloid
 
     rotate
         The rotation of the page in degrees.
