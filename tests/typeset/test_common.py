@@ -12,8 +12,7 @@ from pdfje.typeset.common import (
     splitlines,
 )
 
-from ..common import approx
-from .common import BIG, BLUE, FONT, GREEN, RED, STATE
+from ..common import BIG, BLUE, FONT, GREEN, RED, STATE, approx
 
 
 class TestSplitlines:

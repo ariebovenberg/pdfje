@@ -368,25 +368,17 @@ class Text(Drawing, StyledMixin):
         yield b"BT\n%g %g Td\n" % self.loc.astuple()
         yield from state
         yield from _pick_renderer(self.align)(
-            into_words(splitlines(self.flatten(r, s)), state), state.lead, 0
+            into_lines(splitlines(self.flatten(r, s)), state), state.lead, 0
         )
         yield b"ET\n"
 
 
-def into_words(
+def into_lines(
     split: Iterable[Iterable[Stretch]], state: State
 ) -> Iterator[tuple[Command, TextLine]]:
     for s in split:
         cmd, [*words] = parse_words(s, state)
-        yield (
-            cmd,
-            TextLine(
-                tuple(words),
-                max(w.lead() for w in words),
-                sum(w.width() for w in words),
-                0,
-            ),
-        )
+        yield (cmd, TextLine(tuple(words), sum(w.width() for w in words), 0))
         state = words[-1].state
 
 
@@ -396,30 +388,26 @@ def _render_left(
     yield b"%g TL\n" % lead
     for cmd, ln in lines:
         yield from cmd
-        if ln.lead == lead:
-            yield b"T*\n"
-        else:
-            yield b"0 %g TD\n" % -ln.lead
-            lead = ln.lead
+        yield b"T*\n"
         yield from ln
 
 
 def _render_centered(
-    lines: Iterable[tuple[Command, TextLine]], _: Pt, width: Pt
+    lines: Iterable[tuple[Command, TextLine]], lead: Pt, width: Pt
 ) -> Iterator[bytes]:
     for cmd, ln in lines:
         yield from cmd
-        yield b"%g %g TD\n" % ((width - ln.width) / 2, -ln.lead)
+        yield b"%g %g TD\n" % ((width - ln.width) / 2, -lead)
         yield from ln
         width = ln.width
 
 
 def _render_right(
-    lines: Iterable[tuple[Command, TextLine]], _: Pt, width: Pt
+    lines: Iterable[tuple[Command, TextLine]], lead: Pt, width: Pt
 ) -> Iterator[bytes]:
     for cmd, ln in lines:
         yield from cmd
-        yield b"%g %g TD\n" % ((width - ln.width), -ln.lead)
+        yield b"%g %g TD\n" % ((width - ln.width), -lead)
         yield from ln
         width = ln.width
 

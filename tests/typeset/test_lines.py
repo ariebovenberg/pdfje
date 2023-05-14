@@ -1,13 +1,12 @@
 from typing import Iterable
 
-from pdfje.common import BranchableIterator
+from pdfje.common import BranchableIterator, Pt
 from pdfje.typeset.common import Slug, State, Stretch
 from pdfje.typeset.lines import Line, WrapDone, Wrapper
 from pdfje.typeset.words import WithCmd, Word, parse
 from pdfje.vendor.hyphenate import hyphenate_word
 
-from ..common import approx
-from .common import (
+from ..common import (
     BIG,
     BLACK,
     BLUE,
@@ -16,6 +15,7 @@ from .common import (
     NORMAL,
     RED,
     SMALL,
+    approx,
     mkstate,
     multi,
 )
@@ -23,8 +23,10 @@ from .common import (
 STATE = mkstate(FONT, 10, hyphens=hyphenate_word)
 
 
-def mkwrapper(words: Iterable[Word | WithCmd], s: State) -> Wrapper:
-    return Wrapper(BranchableIterator(words), s)
+def mkwrapper(
+    words: Iterable[Word | WithCmd], s: State, lead: Pt | None = None
+) -> Wrapper:
+    return Wrapper(BranchableIterator(words), s, lead or s.lead)
 
 
 def _assert_word_eq(a: Word, b: Word) -> None:
@@ -65,13 +67,13 @@ def assert_wrapper_eq(a: Wrapper | WrapDone, b: Wrapper | WrapDone) -> None:
 class TestWrapLine:
     def test_empty(self):
         line, w = mkwrapper([], STATE).line(100)
-        assert line == Line((), STATE.lead, 0, 0)
+        assert line == Line((), 0, 0)
         assert w == WrapDone(STATE)
 
     def test_one_word_and_enough_space(self):
         word = Word.simple("complex ", STATE, None)
         line, w = mkwrapper([word], STATE).line(10_000)
-        assert line == Line((word,), STATE.lead, approx(word.width()), 0)
+        assert line == Line((word,), approx(word.width()), 0)
         assert w == WrapDone(STATE)
 
     def test_one_word_and_barely_enough_space(self):
@@ -79,7 +81,6 @@ class TestWrapLine:
         line, w = mkwrapper([word], STATE).line(word.pruned().width() + 0.01)
         assert line == Line(
             (word,),
-            STATE.lead,
             approx(word.width()),
             0,
         )
@@ -91,7 +92,6 @@ class TestWrapLine:
         line, w = mkwrapper([word], STATE).line(cutoff)
         assert line == Line(
             (partial := Word.simple("com-", STATE, None),),
-            STATE.lead,
             approx(partial.width()),
             cutoff - partial.width(),
         )
@@ -100,6 +100,7 @@ class TestWrapLine:
             Wrapper(
                 BranchableIterator([Word.simple("plex ", STATE, None)]),
                 STATE,
+                STATE.lead,
             ),
         )
 
@@ -108,7 +109,6 @@ class TestWrapLine:
         line, w = mkwrapper([word], STATE).line(0.01)
         assert line == Line(
             (partial := Word.simple("com-", STATE, None),),
-            STATE.lead,
             approx(partial.width()),
             0.01 - partial.width(),
         )
@@ -117,6 +117,7 @@ class TestWrapLine:
             Wrapper(
                 BranchableIterator([Word.simple("plex ", STATE, None)]),
                 STATE,
+                STATE.lead,
             ),
         )
 
@@ -131,7 +132,6 @@ class TestWrapLine:
         line, w = mkwrapper(words, STATE).line(10_000)
         assert line == Line(
             words,
-            STATE.lead,
             approx(sum(w.width() for w in words)),
             0,
         )
@@ -151,7 +151,6 @@ class TestWrapLine:
         line, w = mkwrapper(words, STATE).line(min_width + 0.01)
         assert line == Line(
             words,
-            STATE.lead,
             approx(sum(w.width() for w in words)),
             0,
         )
@@ -175,7 +174,6 @@ class TestWrapLine:
         )
         assert line == Line(
             expect_words,
-            STATE.lead,
             approx(expect_width := sum(w.width() for w in expect_words)),
             approx(min_width - 0.01 - expect_width),
         )
@@ -186,6 +184,7 @@ class TestWrapLine:
                     [Word.simple("ed. ", BLUE.apply(STATE), None)]
                 ),
                 BLUE.apply(STATE),
+                STATE.lead,
             ),
         )
 
@@ -202,10 +201,11 @@ class TestWrapLine:
             WithCmd(Word.simple("than", BIG.apply(STATE), " "), HUGE),
         )
         expect_width = sum(w.width() for w in expect_words)
-        line, w = mkwrapper(words, STATE).line(expect_width + 1)
+        line, w = mkwrapper(words, STATE, HUGE.apply(STATE).lead).line(
+            expect_width + 1
+        )
         assert line == Line(
             expect_words,
-            BIG.apply(STATE).lead,
             approx(expect_width),
             approx(1),
         )
@@ -214,6 +214,7 @@ class TestWrapLine:
             Wrapper(
                 BranchableIterator([words[4].without_init_kern()]),
                 HUGE.apply(STATE),
+                HUGE.apply(STATE).lead,
             ),
         )
 
@@ -234,83 +235,75 @@ STRETCHES = [
 
 class TestWrapFill:
     def test_long_low_frame(self):
-        w = Wrapper.start(STRETCHES, BLUE.apply(STATE))
+        w = Wrapper.start(STRETCHES, BLUE.apply(STATE), 0)
         assert w.state == BLUE.apply(STATE)
-        section, w_new = w.fill(10_000, 0.1, allow_empty=True)
-        assert section.lines == []
-        assert section.height_left == approx(0.1)
+        stack, w_new = w.fill(10_000, 0.1, allow_empty=True)
+        assert stack.lines == []
+        assert stack.height_left == approx(0.1)
         assert_wrapper_eq(w, w_new)
-        section, w_new = w.fill(10_000, 0.1, allow_empty=False)
+        stack, w_new = w.fill(10_000, 0.1, allow_empty=False)
         assert w_new == WrapDone(multi(SMALL, RED).apply(STATE))
-        [line] = section.lines
-        assert line.lead == HUGE.apply(STATE).lead
-        assert section.height_left == approx(0.1 - line.lead)
+        [line] = stack.lines
+        assert stack.lead == HUGE.apply(STATE).lead
+        assert stack.height_left == approx(0.1 - stack.lead)
         assert len(line.words) == 31
 
     def test_narrow_tall_frame(self):
-        w = Wrapper.start(STRETCHES, STATE)
+        w = Wrapper.start(STRETCHES, STATE, 0)
         assert w.state == BLUE.apply(STATE)
-        section, w_new = w.fill(0.1, 10_000, allow_empty=False)
-        assert w.fill(0.1, 10_000, allow_empty=True) == (section, w_new)
-        assert len(section.lines) == 48
-        assert section.height_left == approx(
-            10_000 - (sum(n.lead for n in section.lines))
-        )
+        stack, w_new = w.fill(0.1, 10_000, allow_empty=False)
+        assert w.fill(0.1, 10_000, allow_empty=True) == (stack, w_new)
+        assert len(stack.lines) == 48
+        assert stack.height_left == approx(10_000 - stack.height())
         assert w_new == WrapDone(multi(RED, SMALL).apply(STATE))
 
     def test_narrow_low_frame(self):
-        w = Wrapper.start(STRETCHES, STATE)
+        w = Wrapper.start(STRETCHES, STATE, 0)
         assert w.state == BLUE.apply(STATE)
-        section, w_new = w.fill(0.1, 0.1, allow_empty=False)
-        [line] = section.lines
+        stack, w_new = w.fill(0.1, 0.1, allow_empty=False)
+        [line] = stack.lines
         assert len(line.words) == 1
-        assert section.height_left == approx(0.1 - STATE.lead)
+        assert stack.height_left == approx(0.1 - w.lead)
         assert isinstance(w_new, Wrapper)
         assert_wrapper_eq(
             w_new,
-            Wrapper(
-                w_new.queue,
-                BLUE.apply(STATE),
-            ),
+            Wrapper(w_new.queue, BLUE.apply(STATE), w.lead),
         )
 
     def test_tall_frame(self):
-        w = Wrapper.start(STRETCHES, STATE)
+        w = Wrapper.start(STRETCHES, STATE, 0)
         assert w.state == BLUE.apply(STATE)
-        section, w_new = w.fill(500, 10_000, allow_empty=True)
-        assert len(section.lines) == 10
-        assert section.height_left == approx(
-            10_000 - (sum(n.lead for n in section.lines))
-        )
+        stack, w_new = w.fill(500, 10_000, allow_empty=True)
+        assert len(stack.lines) == 10
+        assert stack.height_left == approx(10_000 - stack.height())
         assert w_new == WrapDone(multi(RED, SMALL).apply(STATE))
 
     def test_medium_frame(self):
-        w = Wrapper.start(STRETCHES, STATE)
+        w = Wrapper.start(STRETCHES, STATE, 0)
         assert w.state == BLUE.apply(STATE)
-        section, w_new = w.fill(500, 50, allow_empty=True)
-        assert len(section.lines) == 3
-        assert section.height_left == approx(
-            50 - (sum(n.lead for n in section.lines))
-        )
+        stack, w_new = w.fill(500, height := 76, allow_empty=True)
+        assert len(stack.lines) == 3
+        assert stack.height_left == approx(height - stack.height())
         assert isinstance(w_new, Wrapper)
         assert_wrapper_eq(
             w_new,
             Wrapper(
                 w_new.queue,
                 HUGE.apply(STATE),
+                w.lead,
             ),
         )
-        section, w_new = w_new.fill(800, 70, allow_empty=True)
-        assert len(section.lines) == 3
+        stack, w_new = w_new.fill(800, 90, allow_empty=True)
+        assert len(stack.lines) == 3
 
 
 class TestJustify:
     def test_empty(self):
-        line = Line((), 10, 0, 0)
+        line = Line((), 0, 0)
         assert line.justify() == line
 
     def test_no_word_breaks(self):
-        line = Line((Word.simple("complex", STATE, None),), 10, 200, 10)
+        line = Line((Word.simple("complex", STATE, None),), 200, 10)
         assert line.justify() == line
 
     def test_one_word_break(self):
@@ -320,7 +313,6 @@ class TestJustify:
         )
         line = Line(
             content,
-            STATE.lead,
             width=sum(w.width() for w in content),
             space=8,
         )
@@ -332,7 +324,7 @@ class TestJustify:
 
     def test_multiple_breaks_different_sizes(self):
         words = tuple(parse(STRETCHES, STATE)[1])
-        line = Line(tuple(words), 20, sum(w.width() for w in words), 10)
+        line = Line(tuple(words), sum(w.width() for w in words), 10)
         justified = line.justify()
         assert justified.width == approx(line.width + 10)
         assert sum(w.width() for w in justified.words) == approx(

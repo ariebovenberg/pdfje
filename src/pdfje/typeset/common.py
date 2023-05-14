@@ -4,7 +4,7 @@ import abc
 import re
 from dataclasses import dataclass, field, replace
 from itertools import chain
-from typing import Collection, Generator, Iterable, Iterator, Sequence, TypeVar
+from typing import Collection, Generator, Iterable, Iterator, NamedTuple, Sequence, TypeVar
 
 from ..atoms import LiteralStr, Real
 from ..common import (
@@ -177,9 +177,7 @@ def splitlines(it: Iterable[Stretch]) -> Iterator[NonEmtpyIterator[Stretch]]:
         yield _group()
 
 
-@add_slots
-@dataclass(frozen=True)
-class Stretch:
+class Stretch(NamedTuple):
     cmd: Command
     txt: str
 

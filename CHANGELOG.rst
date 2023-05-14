@@ -1,6 +1,15 @@
 Changelog
 =========
 
+0.6.0 (2023-??-??)
+------------------
+
+**Breaking**
+
+- 📊 In the rare case that a paragraphs contains different text sizes,
+  all lines now rendered with the same leading.
+  This is more consistent and allows for faster layouting.
+
 0.5.0 (2023-05-07)
 ------------------
 
@@ -9,7 +18,7 @@ Changelog
 - 🪆 Expose most classes from submodules instead of root
   (e.g. ``pdfje.Rect`` becomes ``pdfje.draw.Rect``).
   The new locations can be found in the API documentation.
-- ``Rule`` ``padding`` attribute renamed to ``margin``.
+- 🏷️ ``Rule`` ``padding`` attribute renamed to ``margin``.
 
 **Added**
 

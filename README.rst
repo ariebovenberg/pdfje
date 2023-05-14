@@ -60,8 +60,8 @@ for a complete overview of features, including:
 
 See the roadmap_ for supported features.
 
-📖 Decent typography
-~~~~~~~~~~~~~~~~~~~~
+📖 Typography focussed
+~~~~~~~~~~~~~~~~~~~~~~
 
 Legibility counts — and `kerning <https://en.wikipedia.org/wiki/Kerning>`_
 is a key part of this.
