@@ -63,11 +63,14 @@ class MixedBox:
         return self.segments[0][0].has_init_kern()
 
     def indent(self, amount: Pt) -> MixedBox:
-        (first, cmd), *rest = self.segments
-        return MixedBox(
-            ((first.indent(amount), cmd), *rest),
-            self.state,
-        )
+        if amount:
+            (first, cmd), *rest = self.segments
+            return MixedBox(
+                ((first.indent(amount), cmd), *rest),
+                self.state,
+            )
+        else:
+            return self
 
     @property
     def width(self) -> Pt:
@@ -157,14 +160,17 @@ class Word:
             return self
 
     def indent(self, amount: Pt) -> Word:
-        if self.boxes:
-            return Word(
-                (self.boxes[0].indent(amount), *self.boxes[1:]),
-                self.tail,
-                self.state,
-            )
-        assert self.tail  # Words with no boxes or tail shouldn't exist
-        return Word((), self.tail.stretch(amount, self.state), self.state)
+        if amount:
+            if self.boxes:
+                return Word(
+                    (self.boxes[0].indent(amount), *self.boxes[1:]),
+                    self.tail,
+                    self.state,
+                )
+            assert self.tail  # Words with no boxes or tail shouldn't exist
+            return Word((), self.tail.stretch(amount, self.state), self.state)
+        else:
+            return self
 
     def pruned_width(self) -> Pt:
         return sum(s.width for s in self.boxes)
@@ -259,7 +265,7 @@ class WithCmd:
         return self.word.prunable_space()
 
     def indent(self, amount: Pt) -> WithCmd:
-        return WithCmd(self.word.indent(amount), self.cmd)
+        return WithCmd(self.word.indent(amount), self.cmd) if amount else self
 
     def encode_into_line(
         self, line: Iterable[LiteralStr | Real]

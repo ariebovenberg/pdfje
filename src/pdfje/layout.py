@@ -30,8 +30,8 @@ from .common import (
 )
 from .fonts.registry import Registry
 from .style import Span, Style, StyledMixin, StyleFull, StyleLike
-from .typeset.common import State, Stretch, splitlines
-from .typeset.lines import Line, LineSet, WrapDone, Wrapper
+from .typeset.common import State, splitlines
+from .typeset.lines import Line, LineStack, WrapDone, Wrapper
 
 __all__ = [
     "Paragraph",
@@ -128,14 +128,14 @@ class Paragraph(Block, StyledMixin):
 
     """
 
-    content: Iterable[str | Span]
+    content: Sequence[str | Span]
     style: Style
     align: Align
     indent: Pt
 
     def __init__(
         self,
-        content: str | Span | Iterable[str | Span],
+        content: str | Span | Sequence[str | Span],
         style: StyleLike = Style.EMPTY,
         align: Align
         | Literal["left", "center", "right", "justify"] = Align.LEFT,
@@ -153,10 +153,10 @@ class Paragraph(Block, StyledMixin):
     ) -> Generator[ColumnFill, Column, ColumnFill]:
         style |= self.style
         state = style.as_state(fr)
-        for spans in splitlines(self.flatten(fr, style)):
-            col, state = yield from _layout_paragraph(
-                spans, state, col, self.indent, self.align
-            )
+        for strs in splitlines(self.flatten(fr, style)):
+            wrap: Wrapper | WrapDone = Wrapper.start(strs, state, self.indent)
+            assert isinstance(wrap, Wrapper)  # spans is non-empty
+            col, state = yield from _layout_paragraph(wrap, col, self.align)
         return col
 
 
@@ -182,61 +182,115 @@ class ColumnFill(Iterable[bytes]):
 
 
 def _layout_first_line(
-    fill: ColumnFill, w: Wrapper, indent: Pt
+    fill: ColumnFill, w: Wrapper
 ) -> Generator[
     ColumnFill, Column, tuple[ColumnFill, Line, Wrapper | WrapDone]
 ]:
-    ln, w_new = w.line(fill.col.width - indent)
+    ln, w_new = w.line(fill.col.width)
     # If the line doesn't fit, start a new column and fill it there
-    if ln.lead > fill.height_free and fill.blocks:
+    if w.lead > fill.height_free and fill.blocks:
         col = yield fill
         fill = ColumnFill.new(col)
         # OPTIMIZE: only re-do the line if the width actually changes
-        ln, w_new = w.line(col.width - indent)
-    return fill, ln.indent(indent), w_new
+        ln, w_new = w.line(col.width)
+    return fill, ln, w_new
 
 
 def _layout_first_lines(
-    fill: ColumnFill, w: Wrapper, indent: Pt
+    fill: ColumnFill, w: Wrapper
 ) -> Generator[
-    ColumnFill, Column, tuple[ColumnFill, LineSet, Wrapper | WrapDone]
+    ColumnFill, Column, tuple[ColumnFill, LineStack, Wrapper | WrapDone]
 ]:
-    fill, first, w_new = yield from _layout_first_line(fill, w, indent)
+    fill, first, w_new = yield from _layout_first_line(fill, w)
     if isinstance(w_new, Wrapper):
-        ls, w_new = w_new.fill(
-            fill.col.width, fill.height_free - first.lead, True
+        ls, w_new = w_new.fill(fill.col.width, fill.height_free - w.lead, True)
+        return (
+            fill,
+            LineStack([first, *ls.lines], ls.height_left, w.lead),
+            w_new,
         )
-        return fill, LineSet([first, *ls.lines], ls.height_left), w_new
     else:
-        return fill, LineSet([first], fill.height_free - first.lead), w_new
+        return (
+            fill,
+            LineStack([first], fill.height_free - w.lead, w.lead),
+            w_new,
+        )
+
+
+@add_slots
+@dataclass(frozen=True)
+class LineGroup(Streamable):
+    lines: Sequence[Line]
+    align: Align
+    width: Pt
+    # TODO: remove the need for this?
+    lead: Pt
+
+    def __iter__(self) -> Iterator[bytes]:
+        raise NotImplementedError()
+
+
+def layout_par(
+    wrap: Wrapper, fill: ColumnFill, align: Align
+) -> Generator[ColumnFill, Column, ColumnFill]:
+    lines = []
+    height_free = fill.height_free
+    while True:
+        for wrap, ln in wrap.iterlines(fill.col.width):
+            if height_free < wrap.lead:
+                break
+            height_free -= wrap.lead
+            lines.append(ln)
+        else:
+            break
+        col = yield fill.add(
+            LineGroup(lines, align, fill.col.width, wrap.state.lead),
+            height_free,
+        )
+        fill = ColumnFill.new(col)
+        height_free = col.height
+        lines = []
+    return fill.add(
+        LineGroup(lines, align, fill.col.width, wrap.state.lead),
+        height_free,
+    )
 
 
 def _layout_paragraph(
-    spans: Iterable[Stretch],
-    state: State,
+    wrap: Wrapper | WrapDone,
     fill: ColumnFill,
-    indent: Pt,
     align: Align,
 ) -> Generator[ColumnFill, Column, tuple[ColumnFill, State]]:
-    wrap: Wrapper | WrapDone = Wrapper.start(spans, state)
-    assert isinstance(wrap, Wrapper)  # spans is non-empty
+    # TODO: remove this case
+    assert isinstance(wrap, Wrapper)  # spans is non-empty at beginning
     state = wrap.state
-    fill, par, wrap = yield from _layout_first_lines(fill, wrap, indent)
+    fill, par, wrap = yield from _layout_first_lines(fill, wrap)
 
     while isinstance(wrap, Wrapper):
         col = yield fill.add(
             _render_text(
-                fill.cursor(), par.lines, state, align, fill.col.width
+                fill.cursor(),
+                par.lines,
+                state,
+                align,
+                fill.col.width,
+                par.lead,
             ),
             par.height_left,
         )
         state = wrap.state
         par, wrap = wrap.fill(col.width, col.height, allow_empty=False)
         fill = ColumnFill.new(col)
+
     return (
         fill.add(
             _render_text(
-                fill.cursor(), par.lines, state, align, fill.col.width
+                fill.cursor(),
+                par.lines,
+                state,
+                align,
+                fill.col.width,
+                par.lead,
             ),
             par.height_left,
         ),
@@ -245,12 +299,9 @@ def _layout_paragraph(
 
 
 def _render_left(lines: Iterable[Line], lead: Pt, _: Pt) -> Iterator[bytes]:
+    yield b"%g TL\n" % lead
     for ln in lines:
-        if ln.lead == lead:
-            yield b"T*\n"
-        else:
-            yield b"0 %g TD\n" % -ln.lead
-            lead = ln.lead
+        yield b"T*\n"
         yield from ln
 
 
@@ -261,17 +312,19 @@ def _render_justified(
 
 
 def _render_centered(
-    lines: Iterable[Line], _: Pt, width: Pt
+    lines: Iterable[Line], lead: Pt, width: Pt
 ) -> Iterator[bytes]:
     for ln in lines:
-        yield b"%g %g TD\n" % ((width - ln.width) / 2, -ln.lead)
+        yield b"%g %g TD\n" % ((width - ln.width) / 2, -lead)
         yield from ln
         width = ln.width
 
 
-def _render_right(lines: Iterable[Line], _: Pt, width: Pt) -> Iterator[bytes]:
+def _render_right(
+    lines: Iterable[Line], lead: Pt, width: Pt
+) -> Iterator[bytes]:
     for ln in lines:
-        yield b"%g %g TD\n" % ((width - ln.width), -ln.lead)
+        yield b"%g %g TD\n" % ((width - ln.width), -lead)
         yield from ln
         width = ln.width
 
@@ -290,12 +343,16 @@ _pick_renderer: Callable[
 
 
 def _render_text(
-    origin: XY, lines: Iterable[Line], state: State, align: Align, width: Pt
+    origin: XY,
+    lines: Iterable[Line],
+    state: State,
+    align: Align,
+    width: Pt,
+    lead: Pt,
 ) -> Iterator[bytes]:
     yield b"BT\n%g %g Td\n" % origin.astuple()
     yield from state
-    yield b"%g TL\n" % state.lead
-    yield from _pick_renderer(align)(lines, state.lead, width)
+    yield from _pick_renderer(align)(lines, lead, width)
     yield b"ET\n"
 
 

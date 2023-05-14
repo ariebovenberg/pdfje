@@ -17,21 +17,22 @@ from pdfje.typeset.words import (
 )
 from pdfje.vendor.hyphenate import hyphenate_word
 
-from ..common import approx, eq_iter
-from .common import (
+from ..common import (
     BIG,
     BLUE,
-    FONT_3,
+    FONT,
     GREEN,
     HUGE,
     NORMAL,
     RED,
     SMALL,
+    approx,
+    eq_iter,
     mkstate,
     multi,
 )
 
-STATE = mkstate(FONT_3, 10, hyphens=hyphenate_word)
+STATE = mkstate(FONT, 10, hyphens=hyphenate_word)
 
 
 class TestHyphenateWord:
