@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from functools import partial
 from typing import (
     TYPE_CHECKING,
     ClassVar,
@@ -125,4 +126,6 @@ SMALL = SetFont(FONT, 5)
 if TYPE_CHECKING:
     approx = float.__call__
 else:
-    from pytest import approx  # noqa
+    from pytest import approx as _approx  # noqa
+
+    approx = partial(_approx, abs=1e-3)

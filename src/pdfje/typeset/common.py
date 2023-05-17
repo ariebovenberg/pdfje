@@ -4,7 +4,15 @@ import abc
 import re
 from dataclasses import dataclass, field, replace
 from itertools import chain
-from typing import Collection, Generator, Iterable, Iterator, NamedTuple, Sequence, TypeVar
+from typing import (
+    Collection,
+    Generator,
+    Iterable,
+    Iterator,
+    NamedTuple,
+    Sequence,
+    TypeVar,
+)
 
 from ..atoms import LiteralStr, Real
 from ..common import (
