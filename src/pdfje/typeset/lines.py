@@ -5,7 +5,7 @@ from typing import Iterable, Iterator, Sequence
 
 from ..atoms import LiteralStr, Real
 from ..common import BranchableIterator, Pt, Streamable, add_slots
-from .common import SetFont, SetLineSpacing, State, Stretch
+from .common import State, Stretch
 from .words import WithCmd, Word
 from .words import parse as parse_words
 from .words import render_kerned
@@ -32,7 +32,7 @@ class Line(Streamable):
                 w.state.size for w in self.words if w.tail
             )
         except ZeroDivisionError:
-            return self  # No word breaks, no justification.
+            return self  # No word breaks means no justification.
         return Line(
             tuple(
                 w.stretch_tail(width_per_break * w.state.size)
@@ -142,44 +142,16 @@ class Wrapper:
             queue, content[-1].state, self.lead
         )
 
-    # TODO: make this a simple function?
-    def iterlines(self, width: Pt) -> Iterator[tuple[Wrapper, Line]]:
-        w: Wrapper | WrapDone = self
-        while isinstance(w, Wrapper):
-            ln, w_next = w.line(width)
-            yield w, ln
-            w = w_next
-
     def fill(
         self, width: Pt, height: Pt, allow_empty: bool
-    ) -> tuple[LineStack, Wrapper | WrapDone]:
-        w: Wrapper | WrapDone
-        if allow_empty:
-            w = self
-            lines = []
-        else:
-            ln, w = self.line(width)
-            lines = [ln]
-            height -= self.lead
-        while isinstance(w, Wrapper):
-            ln, w_new = w.line(width)
-            height -= self.lead
-            if height < 0:
-                return LineStack(lines, height + self.lead, self.lead), w
+    ) -> tuple[Sequence[Line], Wrapper | WrapDone]:
+        max_lines = max(int(height // self.lead), not allow_empty)
+        lines: list[Line] = []
+        w: Wrapper | WrapDone = self
+        while isinstance(w, Wrapper) and len(lines) < max_lines:
+            ln, w = w.line(width)
             lines.append(ln)
-            w = w_new
-        return LineStack(lines, height, self.lead), w
-
-
-@add_slots
-@dataclass
-class LineStack:
-    lines: Sequence[Line]
-    height_left: Pt
-    lead: Pt
-
-    def height(self) -> Pt:
-        return len(self.lines) * self.lead
+        return lines, w
 
 
 @add_slots

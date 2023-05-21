@@ -238,14 +238,11 @@ class TestWrapFill:
         w = Wrapper.start(STRETCHES, BLUE.apply(STATE), 0)
         assert w.state == BLUE.apply(STATE)
         stack, w_new = w.fill(10_000, 0.1, allow_empty=True)
-        assert stack.lines == []
-        assert stack.height_left == approx(0.1)
+        assert stack == []
         assert_wrapper_eq(w, w_new)
         stack, w_new = w.fill(10_000, 0.1, allow_empty=False)
         assert w_new == WrapDone(multi(SMALL, RED).apply(STATE))
-        [line] = stack.lines
-        assert stack.lead == HUGE.apply(STATE).lead
-        assert stack.height_left == approx(0.1 - stack.lead)
+        [line] = stack
         assert len(line.words) == 31
 
     def test_narrow_tall_frame(self):
@@ -253,17 +250,15 @@ class TestWrapFill:
         assert w.state == BLUE.apply(STATE)
         stack, w_new = w.fill(0.1, 10_000, allow_empty=False)
         assert w.fill(0.1, 10_000, allow_empty=True) == (stack, w_new)
-        assert len(stack.lines) == 48
-        assert stack.height_left == approx(10_000 - stack.height())
+        assert len(stack) == 48
         assert w_new == WrapDone(multi(RED, SMALL).apply(STATE))
 
     def test_narrow_low_frame(self):
         w = Wrapper.start(STRETCHES, STATE, 0)
         assert w.state == BLUE.apply(STATE)
         stack, w_new = w.fill(0.1, 0.1, allow_empty=False)
-        [line] = stack.lines
+        [line] = stack
         assert len(line.words) == 1
-        assert stack.height_left == approx(0.1 - w.lead)
         assert isinstance(w_new, Wrapper)
         assert_wrapper_eq(
             w_new,
@@ -274,16 +269,14 @@ class TestWrapFill:
         w = Wrapper.start(STRETCHES, STATE, 0)
         assert w.state == BLUE.apply(STATE)
         stack, w_new = w.fill(500, 10_000, allow_empty=True)
-        assert len(stack.lines) == 10
-        assert stack.height_left == approx(10_000 - stack.height())
+        assert len(stack) == 10
         assert w_new == WrapDone(multi(RED, SMALL).apply(STATE))
 
     def test_medium_frame(self):
         w = Wrapper.start(STRETCHES, STATE, 0)
         assert w.state == BLUE.apply(STATE)
-        stack, w_new = w.fill(500, height := 76, allow_empty=True)
-        assert len(stack.lines) == 3
-        assert stack.height_left == approx(height - stack.height())
+        stack, w_new = w.fill(500, 76, allow_empty=True)
+        assert len(stack) == 3
         assert isinstance(w_new, Wrapper)
         assert_wrapper_eq(
             w_new,
@@ -294,7 +287,7 @@ class TestWrapFill:
             ),
         )
         stack, w_new = w_new.fill(800, 90, allow_empty=True)
-        assert len(stack.lines) == 3
+        assert len(stack) == 3
 
 
 class TestJustify:

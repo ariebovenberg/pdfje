@@ -31,7 +31,7 @@ from .common import (
 from .fonts.registry import Registry
 from .style import Span, Style, StyledMixin, StyleFull, StyleLike
 from .typeset.common import State, splitlines
-from .typeset.lines import Line, LineStack, WrapDone, Wrapper
+from .typeset.lines import Line, WrapDone, Wrapper
 
 __all__ = [
     "Paragraph",
@@ -160,6 +160,13 @@ class Paragraph(Block, StyledMixin):
         return col
 
 
+class Element(Streamable):
+    @property
+    @abc.abstractmethod
+    def height(self) -> Pt:
+        raise NotImplementedError()
+
+
 @add_slots
 @dataclass(frozen=True)
 class ColumnFill(Iterable[bytes]):
@@ -171,8 +178,10 @@ class ColumnFill(Iterable[bytes]):
     def new(col: Column) -> ColumnFill:
         return ColumnFill(col, [], col.height)
 
-    def add(self, p: Iterable[bytes], height_free: Pt) -> ColumnFill:
-        return ColumnFill(self.col, [*self.blocks, p], height_free)
+    def add(self, e: Iterable[bytes], height: Pt) -> ColumnFill:
+        return ColumnFill(
+            self.col, (*self.blocks, e), self.height_free - height
+        )
 
     def cursor(self) -> XY:
         return self.col.origin.add_y(self.height_free)
@@ -181,120 +190,41 @@ class ColumnFill(Iterable[bytes]):
         yield from flatten(self.blocks)
 
 
-def _layout_first_line(
-    fill: ColumnFill, w: Wrapper
-) -> Generator[
-    ColumnFill, Column, tuple[ColumnFill, Line, Wrapper | WrapDone]
-]:
-    ln, w_new = w.line(fill.col.width)
-    # If the line doesn't fit, start a new column and fill it there
-    if w.lead > fill.height_free and fill.blocks:
-        col = yield fill
-        fill = ColumnFill.new(col)
-        # OPTIMIZE: only re-do the line if the width actually changes
-        ln, w_new = w.line(col.width)
-    return fill, ln, w_new
-
-
-def _layout_first_lines(
-    fill: ColumnFill, w: Wrapper
-) -> Generator[
-    ColumnFill, Column, tuple[ColumnFill, LineStack, Wrapper | WrapDone]
-]:
-    fill, first, w_new = yield from _layout_first_line(fill, w)
-    if isinstance(w_new, Wrapper):
-        ls, w_new = w_new.fill(fill.col.width, fill.height_free - w.lead, True)
-        return (
-            fill,
-            LineStack([first, *ls.lines], ls.height_left, w.lead),
-            w_new,
-        )
-    else:
-        return (
-            fill,
-            LineStack([first], fill.height_free - w.lead, w.lead),
-            w_new,
-        )
-
-
-@add_slots
-@dataclass(frozen=True)
-class LineGroup(Streamable):
-    lines: Sequence[Line]
-    align: Align
-    width: Pt
-    # TODO: remove the need for this?
-    lead: Pt
-
-    def __iter__(self) -> Iterator[bytes]:
-        raise NotImplementedError()
-
-
-def layout_par(
-    wrap: Wrapper, fill: ColumnFill, align: Align
-) -> Generator[ColumnFill, Column, ColumnFill]:
-    lines = []
-    height_free = fill.height_free
-    while True:
-        for wrap, ln in wrap.iterlines(fill.col.width):
-            if height_free < wrap.lead:
-                break
-            height_free -= wrap.lead
-            lines.append(ln)
-        else:
-            break
-        col = yield fill.add(
-            LineGroup(lines, align, fill.col.width, wrap.state.lead),
-            height_free,
-        )
-        fill = ColumnFill.new(col)
-        height_free = col.height
-        lines = []
-    return fill.add(
-        LineGroup(lines, align, fill.col.width, wrap.state.lead),
-        height_free,
-    )
-
-
 def _layout_paragraph(
-    wrap: Wrapper | WrapDone,
+    wrap: Wrapper,
     fill: ColumnFill,
     align: Align,
 ) -> Generator[ColumnFill, Column, tuple[ColumnFill, State]]:
-    # TODO: remove this case
-    assert isinstance(wrap, Wrapper)  # spans is non-empty at beginning
     state = wrap.state
-    fill, par, wrap = yield from _layout_first_lines(fill, wrap)
 
-    while isinstance(wrap, Wrapper):
+    # If the first line won't fit, start a new column and start over.
+    if wrap.lead > fill.height_free and fill.blocks:
+        col = yield fill
+        fill = ColumnFill.new(col)
+
+    stack, w = wrap.fill(
+        fill.col.width, fill.height_free, allow_empty=bool(fill.blocks)
+    )
+
+    while isinstance(w, Wrapper):
         col = yield fill.add(
             _render_text(
-                fill.cursor(),
-                par.lines,
-                state,
-                align,
-                fill.col.width,
-                par.lead,
+                fill.cursor(), stack, state, align, fill.col.width, wrap.lead
             ),
-            par.height_left,
+            len(stack) * wrap.lead,
         )
-        state = wrap.state
-        par, wrap = wrap.fill(col.width, col.height, allow_empty=False)
+        state = w.state
+        stack, w = w.fill(col.width, col.height, allow_empty=False)
         fill = ColumnFill.new(col)
 
     return (
         fill.add(
             _render_text(
-                fill.cursor(),
-                par.lines,
-                state,
-                align,
-                fill.col.width,
-                par.lead,
+                fill.cursor(), stack, state, align, fill.col.width, wrap.lead
             ),
-            par.height_left,
+            len(stack) * wrap.lead,
         ),
-        wrap.state,
+        w.state,
     )
 
 
@@ -388,7 +318,7 @@ class Rule(Block):
                 XY(x + fill.col.width - left - right, y),
                 self.color,
             ),
-            fill.height_free - top - bottom,
+            top + bottom,
         )
 
 

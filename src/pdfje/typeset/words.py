@@ -319,30 +319,6 @@ def parse(
     return cmd, _parse_rest(it, state, txt) if txt else iter(())
 
 
-def _parse_simple_words(
-    txt: str, pos: Pos, state: State, prev: Char | None
-) -> Generator[Word | WithCmd, None, str | Word]:
-    assert pos < len(txt)
-    ms = _WORD_RE.finditer(txt, pos)
-    try:
-        next_match = next(ms)
-    except StopIteration:
-        return txt[pos:]
-
-    for match, next_match in pairwise(prepend(next_match, ms)):
-        word = match.group()
-        yield Word.simple(word, state, prev)
-        prev = word[-1]
-
-    final_word = Word.simple(next_match.group(), state, prev)
-    pos = next_match.end()
-    if pos < len(txt):
-        yield final_word
-        return txt[pos:]
-    else:
-        return final_word
-
-
 def _parse_rest(
     it: Iterable[Stretch], state: State, txt: str | None
 ) -> Iterator[Word | WithCmd]:
@@ -362,15 +338,38 @@ def _parse_rest(
                 yield last
                 continue
         try:
-            __s = next(it)
-            cmd = __s.cmd
-            txt = __s.txt
+            cmd, txt = next(it)
         except StopIteration:
             yield last
             return
         yield last.with_cmd(cmd)
         state = cmd.apply(state)
         pos = 0
+
+
+def _parse_simple_words(
+    txt: str, pos: Pos, state: State, prev: Char | None
+) -> Generator[Word | WithCmd, None, str | Word]:
+    assert pos < len(txt)
+    ms = _WORD_RE.finditer(txt, pos)
+    try:
+        next_match = next(ms)
+    except StopIteration:
+        return txt[pos:]
+
+    for match, next_match in pairwise(prepend(next_match, ms)):
+        word = match.group()
+        match.groups()
+        yield Word.simple(word, state, prev)
+        prev = word[-1]
+
+    final_word = Word.simple(next_match.group(), state, prev)
+    pos = next_match.end()
+    if pos < len(txt):
+        yield final_word
+        return txt[pos:]
+    else:
+        return final_word
 
 
 def _complete_word(
