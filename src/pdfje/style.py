@@ -6,8 +6,8 @@ from typing import (
     TYPE_CHECKING,
     ClassVar,
     Generator,
-    Iterable,
     Iterator,
+    Sequence,
     TypeGuard,
     TypeVar,
     final,
@@ -37,9 +37,8 @@ from .typeset.hyphens import (
 __all__ = ["Style", "Span", "StyleLike"]
 
 
+# sentinel value for unset style attributes
 class _NOT_SET:
-    """Sentinel value for unset style attributes."""
-
     __slots__ = ()
 
     def __repr__(self) -> str:
@@ -288,7 +287,7 @@ def _differs(a: _T | None, b: _T) -> TypeGuard[_T]:
 class StyledMixin:
     "A mixin for shared behavior of styled text classes"
     __slots__ = ()
-    content: Iterable[str | Span]
+    content: Sequence[str | Span]
     style: Style
 
     def flatten(
@@ -315,7 +314,7 @@ class Span(StyledMixin):
 
     Parameters
     ----------
-    content: str | Span | ~typing.Iterable[str | Span]
+    content: str | Span | ~typing.Sequence[str | Span]
         The text to render. Can be a string, or a nested :class:`~pdfje.Span`.
     style
         The style to render the text with.
@@ -339,12 +338,12 @@ class Span(StyledMixin):
         ], style=times_roman)
     """
 
-    content: Iterable[str | Span]
+    content: Sequence[str | Span]
     style: Style
 
     def __init__(
         self,
-        content: str | Span | Iterable[str | Span],
+        content: str | Span | Sequence[str | Span],
         style: StyleLike = Style.EMPTY,
     ):
         if isinstance(content, (str, Span)):

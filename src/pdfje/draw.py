@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass
 from operator import attrgetter
-from typing import Callable, Iterable, Iterator, Literal, final
+from typing import Callable, Iterable, Iterator, Literal, Sequence, final
 
 from .common import (
     RGB,
@@ -331,7 +331,7 @@ class Text(Drawing, StyledMixin):
     ----------
     loc
         The location of the text. Can be parsed from a 2-tuple.
-    content: str | Span | ~typing.Iterable[str | Span]
+    content: str | Span | ~typing.Sequence[str | Span]
         The text to render. Can be a string, or a nested :class:`~pdfje.Span`.
     style
         The style to apply to the text.
@@ -340,14 +340,14 @@ class Text(Drawing, StyledMixin):
     """
 
     loc: XY
-    content: Iterable[str | Span]
+    content: Sequence[str | Span]
     style: Style
     align: Align
 
     def __init__(
         self,
         loc: XY | tuple[float, float],
-        content: str | Span | Iterable[str | Span],
+        content: str | Span | Sequence[str | Span],
         style: StyleLike = Style.EMPTY,
         align: Align | Literal["left", "center", "right"] = Align.LEFT,
     ) -> None:
