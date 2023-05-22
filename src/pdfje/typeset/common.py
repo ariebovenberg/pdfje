@@ -190,6 +190,16 @@ class Stretch(NamedTuple):
     txt: str
 
 
+def max_lead(s: Iterable[Stretch], state: State) -> Pt:
+    # FUTURE: we apply commands elsewhere, so doing it also here
+    #         is perhaps a bit wasteful
+    lead = state.lead
+    for cmd, _ in s:
+        state = cmd.apply(state)
+        lead = max(lead, state.lead)
+    return lead
+
+
 def _encode_kerning(
     txt: str,
     kerning: Sequence[Kern],

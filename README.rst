@@ -109,6 +109,7 @@ Features:
     - 🚧 Avoiding orphaned/widowed lines
     - 🚧 Tex-style line breaking
     - 🚧 Broader unicode support in text wrapping
+    - 🚧 Headings (which stick to their paragraphs)
 - Drawing operations
     - ✅ Lines
     - ✅ Rectangles

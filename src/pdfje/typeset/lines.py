@@ -5,7 +5,7 @@ from typing import Iterable, Iterator, Sequence
 
 from ..atoms import LiteralStr, Real
 from ..common import BranchableIterator, Pt, Streamable, add_slots
-from .common import State, Stretch
+from .common import State, Stretch, max_lead
 from .words import WithCmd, Word
 from .words import parse as parse_words
 from .words import render_kerned
@@ -61,16 +61,6 @@ def _indent_first(
     yield from it
 
 
-def _max_lead(s: Iterable[Stretch], state: State) -> Pt:
-    # TODO: we apply commands elsewhere, so doing it also here
-    # is perhaps a bit wasteful
-    lead = state.lead
-    for cmd, _ in s:
-        state = cmd.apply(state)
-        lead = max(lead, state.lead)
-    return lead
-
-
 @add_slots
 @dataclass(frozen=True)
 class Wrapper:
@@ -94,7 +84,7 @@ class Wrapper:
         return Wrapper(
             BranchableIterator(_indent_first(words, indent)),
             cmd.apply(state),
-            _max_lead(it, state),
+            max_lead(it, state),
         )
 
     def line(self, width: Pt) -> tuple[Line, Wrapper | WrapDone]:
