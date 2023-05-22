@@ -8,8 +8,8 @@ from typing import (
     Generator,
     Iterator,
     Sequence,
-    TypeGuard,
     TypeVar,
+    Union,
     final,
 )
 
@@ -203,7 +203,7 @@ class Style:
     EMPTY: ClassVar[Style]
 
 
-StyleLike = Style | RGB | Typeface | HexColor
+StyleLike = Union[Style, RGB, Typeface, HexColor]
 Style.EMPTY = Style()
 
 bold = Style(bold=True)
@@ -280,8 +280,16 @@ def _fallback(a: _T | None, b: _T) -> _T:
     return b if a is None else a
 
 
-def _differs(a: _T | None, b: _T) -> TypeGuard[_T]:
-    return a is not None and a != b
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import TypeGuard
+
+    def _differs(a: _T | None, b: _T) -> TypeGuard[_T]:
+        return a is not None and a != b
+
+else:
+
+    def _differs(a: _T | None, b: _T) -> bool:
+        return a is not None and a != b
 
 
 class StyledMixin:

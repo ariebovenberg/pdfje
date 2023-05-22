@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import re
-from typing import Callable, Iterator, Sequence, cast
+from typing import Callable, Iterator, Sequence, Tuple, cast
 from unittest.mock import ANY
 
 import pytest
@@ -491,6 +493,6 @@ def _into_boxes(
 
 
 WORDS, BOXES = cast(
-    tuple[tuple[str, ...], tuple[Box, ...]],
+    Tuple[Tuple[str, ...], Tuple[Box, ...]],
     zip(*_into_boxes(EXAMPLE, times_roman.regular.width)),
 )

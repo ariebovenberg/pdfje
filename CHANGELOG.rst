@@ -10,6 +10,10 @@ Changelog
   all lines now rendered with the same leading.
   This is more consistent and allows for faster layouting.
 
+**Fixed**
+
+- 🐍 Fix compatibility with Python 3.8 and 3.9
+
 0.5.0 (2023-05-07)
 ------------------
 

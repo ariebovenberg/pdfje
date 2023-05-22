@@ -7,12 +7,12 @@ Changes from the original algorithm:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from itertools import pairwise
 from math import sqrt
 from operator import attrgetter
 from typing import Callable, Iterable, Literal, Sequence
 
 from ..common import add_slots
+from ..compat import pairwise
 
 Pos = int  # position in the list of boxes
 LineNum = int  # zero-based line number

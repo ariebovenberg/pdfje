@@ -1,4 +1,6 @@
 """Low-level PDF objects and operations"""
+from __future__ import annotations
+
 import abc
 import re
 from binascii import hexlify
@@ -7,7 +9,7 @@ from functools import partial
 from itertools import accumulate, chain, repeat, starmap
 from math import isfinite
 from secrets import token_bytes
-from typing import Collection, Iterable, Iterator, Sequence
+from typing import Collection, Iterable, Iterator, Sequence, Tuple
 from zlib import compress
 
 from .common import add_slots, setattr_frozen
@@ -32,7 +34,7 @@ class Atom(abc.ABC):
         raise NotImplementedError()
 
 
-Object = tuple[ObjectID, Atom]
+Object = Tuple[ObjectID, Atom]
 
 
 @add_slots
