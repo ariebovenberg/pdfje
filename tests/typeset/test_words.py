@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import replace
 from functools import partial
 from typing import Generator, TypeVar

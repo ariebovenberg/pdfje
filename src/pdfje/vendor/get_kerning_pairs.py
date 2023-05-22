@@ -27,6 +27,7 @@
 # - OTFKernReader takes a TTFont object as input instead of a path
 # - added a `for_font` helper method
 # - formatted with black and isort
+from __future__ import annotations
 
 from typing import Mapping
 

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass, field
-from itertools import chain, count, pairwise
+from itertools import chain, count
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, final
+from typing import TYPE_CHECKING, Iterable, Tuple, Union, final
 
 from .. import atoms
 from ..atoms import ASCII
 from ..common import Char, Func, Pos, Pt, add_slots, setattr_frozen
+from ..compat import pairwise
 
 FontID = bytes  # unique, internal identifier assigned to a font within a PDF
 GlyphPt = float  # length unit in glyph space
@@ -158,7 +159,7 @@ class BuiltinTypeface:
             return self.italic if italic else self.regular
 
 
-Typeface = BuiltinTypeface | TrueType
+Typeface = Union[BuiltinTypeface, TrueType]
 
 
 @final
@@ -199,8 +200,8 @@ class BuiltinFont(Font):
         )
 
 
-KerningTable = Func[tuple[Char, Char], GlyphPt]
-Kern = tuple[Pos, GlyphPt]
+KerningTable = Func[Tuple[Char, Char], GlyphPt]
+Kern = Tuple[Pos, GlyphPt]
 
 
 def kern(

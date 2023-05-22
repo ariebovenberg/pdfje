@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from functools import partial
 from typing import (
@@ -5,6 +7,7 @@ from typing import (
     ClassVar,
     Collection,
     Iterable,
+    List,
     Sequence,
     TypeVar,
 )
@@ -27,7 +30,7 @@ from pdfje.typeset.hyphens import Hyphenator, never_hyphenate
 T = TypeVar("T")
 
 
-class eq_iter(list[T]):
+class eq_iter(List[T]):
     """Test helper for comparing iterables."""
 
     def __eq__(self, other: object) -> bool:

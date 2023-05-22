@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from itertools import chain, count
 from typing import Iterable, Iterator

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from itertools import cycle, islice
 from pathlib import Path
 

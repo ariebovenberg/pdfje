@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from itertools import chain, pairwise
+from itertools import chain
 from typing import Generator, Iterable, Iterator, Sequence
 
 from pdfje.atoms import Array, LiteralStr, Real
@@ -22,6 +22,7 @@ from ..common import (
     add_slots,
     prepend,
 )
+from ..compat import pairwise
 from ..fonts.common import TEXTSPACE_TO_GLYPHSPACE, GlyphPt
 from .common import NO_OP, Chain, Command, Slug, State, Stretch
 

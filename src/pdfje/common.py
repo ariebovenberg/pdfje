@@ -15,7 +15,9 @@ from typing import (
     Mapping,
     Protocol,
     Sequence,
+    Tuple,
     TypeVar,
+    Union,
     final,
     no_type_check,
     overload,
@@ -267,9 +269,9 @@ class Sides(Sequence[float]):
             raise TypeError(f"Cannot parse {v} as sides")
 
 
-SidesLike = (
-    Sides | tuple[Pt, Pt, Pt, Pt] | tuple[Pt, Pt, Pt] | tuple[Pt, Pt] | Pt
-)
+SidesLike = Union[
+    Sides, Tuple[Pt, Pt, Pt, Pt], Tuple[Pt, Pt, Pt], Tuple[Pt, Pt], Pt
+]
 
 
 @final
