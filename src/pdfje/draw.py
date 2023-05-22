@@ -18,7 +18,7 @@ from .common import (
 )
 from .fonts.registry import Registry
 from .style import Span, Style, StyledMixin, StyleFull, StyleLike
-from .typeset.common import Command, State, Stretch, splitlines
+from .typeset.common import Command, State, Stretch, max_lead, splitlines
 from .typeset.lines import Line as TextLine
 from .typeset.words import parse as parse_words
 
@@ -367,8 +367,10 @@ class Text(Drawing, StyledMixin):
         state = s.as_state(r)
         yield b"BT\n%g %g Td\n" % self.loc.astuple()
         yield from state
+        stretches = list(self.flatten(r, s))
+        lead = max_lead(stretches, state)
         yield from _pick_renderer(self.align)(
-            into_lines(splitlines(self.flatten(r, s)), state), state.lead, 0
+            into_lines(splitlines(stretches), state), lead, 0
         )
         yield b"ET\n"
 
