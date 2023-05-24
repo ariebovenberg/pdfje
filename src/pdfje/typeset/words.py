@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from itertools import chain
-from typing import Generator, Iterable, Iterator, Sequence
+from typing import Generator, Iterable, Iterator, Sequence, Union
 
 from pdfje.atoms import Array, LiteralStr, Real
 
@@ -24,7 +24,7 @@ from ..common import (
 )
 from ..compat import pairwise
 from ..fonts.common import TEXTSPACE_TO_GLYPHSPACE, GlyphPt
-from .common import NO_OP, Chain, Command, Slug, State, Stretch
+from .common import NO_OP, Chain, Command, Passage, Slug, State
 
 # FUTURE: expand to support the full unicode spec,
 # see https://unicode.org/reports/tr14/.
@@ -252,11 +252,11 @@ class WithCmd:
             else self
         )
 
-    def hyphenate(self, w: Pt, /) -> tuple[Word | None, Word | WithCmd]:
+    def hyphenate(self, w: Pt, /) -> tuple[Word | None, WordLike]:
         a, b = self.word.hyphenate(w)
         return a, b.with_cmd(self.cmd)
 
-    def minimal_box(self) -> tuple[Word | WithCmd, Word | WithCmd | None]:
+    def minimal_box(self) -> tuple[WordLike, WordLike | None]:
         a, b = self.word.minimal_box()
         if b is None:
             return WithCmd(a, self.cmd), None
@@ -275,6 +275,9 @@ class WithCmd:
         yield from render_kerned(line)
         yield from self.cmd
         return ()
+
+
+WordLike = Union[Word, WithCmd]
 
 
 @add_slots
@@ -313,16 +316,16 @@ class TrailingSpace:
 
 
 def parse(
-    it: Iterable[Stretch], state: State
-) -> tuple[Command, Iterator[Word | WithCmd]]:
+    it: Iterable[Passage], state: State
+) -> tuple[Command, Iterator[WordLike]]:
     it = iter(it)
     cmd, txt, state = _fold_commands(it, state)
     return cmd, _parse_rest(it, state, txt) if txt else iter(())
 
 
 def _parse_rest(
-    it: Iterable[Stretch], state: State, txt: str | None
-) -> Iterator[Word | WithCmd]:
+    it: Iterable[Passage], state: State, txt: str | None
+) -> Iterator[WordLike]:
     it = iter(it)
     prev: Char | None = None
     pos = 0
@@ -350,7 +353,7 @@ def _parse_rest(
 
 def _parse_simple_words(
     txt: str, pos: Pos, state: State, prev: Char | None
-) -> Generator[Word | WithCmd, None, str | Word]:
+) -> Generator[WordLike, None, str | Word]:
     assert pos < len(txt)
     ms = _WORD_RE.finditer(txt, pos)
     try:
@@ -374,11 +377,11 @@ def _parse_simple_words(
 
 
 def _complete_word(
-    it: Iterator[Stretch], head: str, state: State, prev: Char | None
+    it: Iterator[Passage], head: str, state: State, prev: Char | None
 ) -> tuple[Word, str | None, Pos]:
     parts: list[tuple[Command, str]] = []
     has_trailing_space = False
-    st: Stretch | None
+    st: Passage | None
     for st in it:
         if match := _WORD_RE.search(st.txt):
             word = match.group()
@@ -435,7 +438,7 @@ def _complete_word(
 
 
 def _fold_commands(
-    it: Iterator[Stretch], state: State
+    it: Iterator[Passage], state: State
 ) -> tuple[Command, str | None, State]:
     buffer: list[Command] = []
     for s in it:
@@ -448,3 +451,13 @@ def _fold_commands(
 
 def render_kerned(content: Iterable[LiteralStr | Real]) -> Streamable:
     return chain(Array(content).write(), (b" TJ\n",))
+
+
+def indent_first(ws: Iterable[WordLike], amount: Pt) -> Iterator[WordLike]:
+    it = iter(ws)
+    try:
+        first = next(it)
+    except StopIteration:
+        return
+    yield first.indent(amount)
+    yield from it

@@ -16,8 +16,8 @@ from pdfje.typeset.tex import (
     Break,
     NoFeasibleBreaks,
     optimum_fit,
-    ratio_nostretch,
-    ratio_stretchable,
+    ratio_justified,
+    ratio_ragged,
 )
 
 from ..common import approx
@@ -41,41 +41,41 @@ def spaced_box(
     )
 
 
-class TestRatio:
+class TestRatioJustified:
     def test_no_stretch_or_shrink(self):
-        assert ratio_stretchable(
+        assert ratio_justified(
             10,
             3,
             2,
             spaced_box(30, stretch=3, shrink=2, space=5),
             100,
         ) == approx(BIG + (20 / 100))
-        assert ratio_stretchable(
+        assert ratio_justified(
             10, 3, 2, spaced_box(30, space=5, stretch=3, shrink=2), 1
         ) == approx(BIG + 20)
 
     def test_exact_size(self):
         assert (
-            ratio_stretchable(
+            ratio_justified(
                 10, 3, 2, spaced_box(30, space=5, stretch=3, shrink=2), 20
             )
             == 0
         )
 
     def test_needs_shrink(self):
-        assert ratio_stretchable(
+        assert ratio_justified(
             10, 3, 2, spaced_box(30, space=5, stretch=5, shrink=7), 18
         ) == approx(-(20 - 18) / (7 - 2))
 
     def test_needs_stretch(self):
-        assert ratio_stretchable(
+        assert ratio_justified(
             10, 3, 2, spaced_box(30, space=5, stretch=5, shrink=7), 22
         ) == approx((22 - 20) / (5 - 3))
 
 
-class TestRatioNoStretch:
+class TestRatioRagged:
     def test_enough_space(self):
-        result = ratio_nostretch(
+        result = ratio_ragged(
             10,
             3,
             2,
@@ -83,7 +83,7 @@ class TestRatioNoStretch:
             100,
         )
         assert result > 1
-        assert result > ratio_nostretch(
+        assert result > ratio_ragged(
             10,
             3,
             2,
@@ -93,7 +93,7 @@ class TestRatioNoStretch:
 
     def test_exact_size(self):
         assert (
-            ratio_nostretch(
+            ratio_ragged(
                 10, 3, 2, spaced_box(30, space=5, stretch=3, shrink=2), 20
             )
             == 0
@@ -101,7 +101,7 @@ class TestRatioNoStretch:
 
     def test_not_enought_space(self):
         assert (
-            ratio_nostretch(
+            ratio_ragged(
                 10, 3, 2, spaced_box(30, space=5, stretch=3, shrink=2), 15
             )
             == -BIG

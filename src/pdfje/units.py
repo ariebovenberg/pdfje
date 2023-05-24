@@ -10,6 +10,7 @@ __all__ = [
     "mm",
     "pc",
     "pt",
+    "Pt",
 ]
 
 inch: Callable[[float], Pt] = partial(mul, 72)

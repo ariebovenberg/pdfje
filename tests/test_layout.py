@@ -1,16 +1,29 @@
+from __future__ import annotations
+
+from typing import Iterator
+
 import pytest
 
+from pdfje import Page, red
 from pdfje.common import XY
-from pdfje.layout import (  # ColumnFill,; LineGroup,; layout_par,
+from pdfje.layout import (
     Align,
     Column,
+    ColumnFill,
+    PageFill,
     Paragraph,
+    fill_columns,
 )
+from pdfje.resources import Resources
 from pdfje.style import Style
-from pdfje.typeset.common import Stretch
-from pdfje.typeset.lines import Line, Wrapper
+from pdfje.units import A3, A4
 
-from .common import RED, STATE
+STYLE = Style(italic=True, color=red).setdefault()
+
+
+@pytest.fixture
+def res() -> Resources:
+    return Resources()
 
 
 def test_paragraph_init():
@@ -27,52 +40,71 @@ def test_paragraph_init():
     )
 
 
+# class TestParagraphFill:
+#     def test_empty(self, res: Resources):
+#         cols = [
+#             ColumnFill(Column(XY(80, 40), 205, 210), (), 105),
+#             ColumnFill(Column(XY(350, 40), 195, 190), (), 110),
+#             ColumnFill(Column(XY(350, 40), 200, 200), (), 90),
+#         ]
+#         p = Paragraph("")
+#         list(p.fill(res, STYLE, iter(cols)))
+
+
 class TestColumn:
     def test_init(self):
         assert Column((1, 2), 3, 4) == Column(XY(1, 2), 3, 4)
 
 
-# class TestLayoutParagraph:
-#     def test_empty(self):
-#         wrap = Wrapper.start([], STATE, 0)
-#         layout = layout_par(
-#             wrap,
-#             ColumnFill(Column(XY(10, 10), 100, 100), [], 30),
-#             Align.LEFT,
-#         )
-#         try:
-#             next(layout)
-#         except StopIteration as e:
-#             assert e.value == ColumnFill(
-#                 Column(XY(10, 10), 100, 100),
-#                 [LineGroup([Line((), 0, 0)], Align.LEFT, 100, STATE.lead)],
-#                 30 - STATE.lead,
-#             )
-#         else:
-#             pytest.fail("Expected StopIteration")
+def test_fill_columns():
+    pages = [
+        PageFill(
+            Page(size=A3),
+            (ColumnFill(Column(XY(40, 40), 190, 180), (), 100),),
+            (ColumnFill(Column(XY(300, 40), 200, 200), (), 10),),
+        ),
+        PageFill(Page(size=A4), (), ()),
+        PageFill(
+            Page(size=A3.flip()),
+            (
+                ColumnFill(Column(XY(80, 40), 205, 210), (), 100),
+                ColumnFill(Column(XY(350, 40), 195, 190), (), 100),
+            ),
+            (),
+        ),
+        PageFill(
+            Page(size=A4.flip()),
+            (
+                ColumnFill(Column(XY(40, 40), 210, 170), (), 100),
+                ColumnFill(Column(XY(300, 40), 195, 160), (), 100),
+            ),
+            (),
+        ),
+    ]
 
-#     def test_enough_space(self):
-#         wrap = Wrapper.start(
-#             [
-#                 Stretch(
-#                     RED,
-#                     "Simple is better than complex. "
-#                     "Complex is better than complicated.",
-#                 )
-#             ],
-#             STATE,
-#             0,
-#         )
-#         layout = layout_par(
-#             wrap,
-#             ColumnFill(Column(XY(10, 10), 500, 100), [], 30),
-#             Align.LEFT,
-#         )
-#         col = next(layout)
-#         breakpoint()
-#         try:
-#             next(layout)
-#         except StopIteration as e:
-#             assert e.value == ColumnFill(Column(XY(10, 10), 100, 100), [], 30)
-#         else:
-#             pytest.fail("Expected StopIteration")
+    def dummy_filler(cs: Iterator[ColumnFill]) -> Iterator[ColumnFill]:
+        for char in "abc":
+            yield next(cs).add([char.encode()], 40)
+        next(cs)  # consume one more than needed
+
+    doc, completed = fill_columns(iter(pages), dummy_filler)
+    assert list(doc) == pages[3:]
+    assert completed == [
+        PageFill(
+            Page(size=A3),
+            (),
+            (
+                ColumnFill(Column(XY(300, 40), 200, 200), (), 10),
+                ColumnFill(Column(XY(40, 40), 190, 180), ([b"a"],), 60),
+            ),
+        ),
+        PageFill(Page(size=A4), (), ()),
+        PageFill(
+            Page(size=A3.flip()),
+            (),
+            (
+                ColumnFill(Column(XY(80, 40), 205, 210), ([b"b"],), 60),
+                ColumnFill(Column(XY(350, 40), 195, 190), ([b"c"],), 60),
+            ),
+        ),
+    ]

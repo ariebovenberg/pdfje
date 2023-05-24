@@ -2,166 +2,26 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from itertools import chain, count, islice
-from operator import methodcaller
+from itertools import count, islice
 from pathlib import Path
-from typing import (
-    IO,
-    Callable,
-    Generator,
-    Iterable,
-    Iterator,
-    Literal,
-    Sequence,
-    final,
-    overload,
-)
+from typing import IO, Callable, Generator, Iterable, Iterator, final, overload
 
 from . import atoms
 from .atoms import OBJ_ID_PAGETREE, OBJ_ID_RESOURCES
 from .common import (
-    XY,
-    Pt,
-    Sides,
-    SidesLike,
     add_slots,
     always,
     flatten,
     setattr_frozen,
     skips_to_first_yield,
 )
-from .draw import Drawing
-from .fonts.registry import Registry
-from .layout import Block, Column, ColumnFill, Paragraph
+from .layout import Block, ColumnFill, Paragraph
+from .page import Column, Page, RenderedPage
+from .resources import Resources
 from .style import Style, StyleFull, StyleLike
-from .units import A4, inch
 
 _OBJ_ID_FIRST_PAGE: atoms.ObjectID = OBJ_ID_RESOURCES + 1
 _OBJS_PER_PAGE = 2
-
-Rotation = Literal[0, 90, 180, 270]
-
-
-@add_slots
-@dataclass(frozen=True)
-class RenderedPage:
-    rotate: Rotation
-    size: XY
-    stream: Iterable[bytes]
-
-    def to_atoms(self, i: atoms.ObjectID) -> Iterable[atoms.Object]:
-        yield i, atoms.Dictionary(
-            (b"Type", atoms.Name(b"Page")),
-            (b"Parent", atoms.Ref(OBJ_ID_PAGETREE)),
-            (b"MediaBox", atoms.Array(map(atoms.Real, [0, 0, *self.size]))),
-            (b"Contents", atoms.Ref(i + 1)),
-            (b"Resources", atoms.Ref(OBJ_ID_RESOURCES)),
-            (b"Rotate", atoms.Int(self.rotate)),
-        )
-        yield i + 1, atoms.Stream(self.stream)
-
-
-@final
-@add_slots
-@dataclass(frozen=True, init=False)
-class Page:
-    """A single page within a document. Contains drawings at given positions.
-
-    Example
-    -------
-
-    .. code-block:: python
-
-       from pdfje import Page, Line, Rect, Text, A5
-       title_page = Page([
-           Text((100, 200), "My awesome story"),
-           Line((100, 100), (200, 100)),
-           Rect((50, 50), width=200, height=300),
-       ], size=A5)
-
-    Parameters
-    ----------
-    content
-        The drawings to render on the page.
-    size
-        The size of the page in points. Common page sizes are available
-        as constants:
-
-        .. code-block:: python
-
-            from pdfje.units import Page, A4, A5, A6, letter, legal, tabloid
-
-    rotate
-        The rotation of the page in degrees.
-    margin
-        The margin around the page in points, used for layout.
-        Can be a single value, or a 2, 3 or 4-tuple following the CSS
-        shorthand convention. see https://www.w3schools.com/css/css_margin.asp
-    columns
-        The columns to use for laying out the content.
-        If not given, the content is laid out in a single column
-        based on the page size and margin.
-
-    """
-
-    content: Iterable[Drawing]
-    size: XY
-    rotate: Rotation
-    columns: Sequence[Column]
-
-    def __init__(
-        self,
-        content: Iterable[Drawing] = (),
-        size: XY | tuple[Pt, Pt] = A4,
-        rotate: Rotation = 0,
-        margin: SidesLike = Sides.parse(inch(1)),
-        columns: Sequence[Column] = (),
-    ) -> None:
-        size = XY.parse(size)
-        setattr_frozen(self, "content", content)
-        setattr_frozen(self, "rotate", rotate)
-        setattr_frozen(self, "columns", columns or [_column(size, margin)])
-        setattr_frozen(self, "size", size)
-
-    def add(self, d: Drawing, /) -> Page:
-        """Create a new page with the given drawing added
-
-        Parameters
-        ----------
-        d
-            The drawing to add to the page
-        """
-        return Page(
-            [*self.content, d], self.size, self.rotate, columns=self.columns
-        )
-
-    def generate(
-        self, f: Registry, s: StyleFull, pnum: int, /
-    ) -> Iterator[RenderedPage]:
-        yield RenderedPage(
-            self.rotate,
-            self.size,
-            flatten(map(methodcaller("render", f, s), self.content)),
-        )
-
-    def fill(
-        self, f: Registry, s: StyleFull, extra: Iterable[bytes]
-    ) -> RenderedPage:
-        return RenderedPage(
-            self.rotate,
-            self.size,
-            chain(
-                flatten(map(methodcaller("render", f, s), self.content)),
-                extra,
-            ),
-        )
-
-
-def _column(page: XY, margin: SidesLike) -> Column:
-    top, right, bottom, left = Sides.parse(margin)
-    return Column(
-        XY(left, bottom), page.x - left - right, page.y - top - bottom
-    )
 
 
 @final
@@ -201,9 +61,9 @@ class AutoPage:
         setattr_frozen(self, "template", template)
 
     def generate(
-        self, fr: Registry, style: StyleFull, pnum: int, /
+        self, res: Resources, style: StyleFull, pnum: int, /
     ) -> Iterator[RenderedPage]:
-        gen = self._chained_blocks_layout(fr, style)
+        gen = self._chained_blocks_layout(res, style)
         for page in map(self.template, count(pnum)):  # pragma: no branch
             filled_columns = []
             for col in page.columns:
@@ -212,16 +72,16 @@ class AutoPage:
                 except StopIteration:
                     break
             else:
-                yield page.fill(fr, style, flatten(filled_columns))
+                yield page.fill(res, style, flatten(filled_columns))
                 continue  # there's still content, so keep on paging
 
             if filled_columns:
-                yield page.fill(fr, style, flatten(filled_columns))
+                yield page.fill(res, style, flatten(filled_columns))
             return
 
     @skips_to_first_yield
     def _chained_blocks_layout(
-        self, r: Registry, s: StyleFull, /
+        self, r: Resources, s: StyleFull, /
     ) -> Generator[ColumnFill, Column, None]:
         fill = ColumnFill.new((yield))  # type: ignore[misc]
         for b in self.content:
@@ -348,12 +208,12 @@ class Document:
 def _doc_objects(
     items: Iterable[Page | AutoPage], style: StyleFull
 ) -> Iterator[atoms.Object]:
-    fonts_ = Registry()
+    res = Resources()
     obj_id = pagenum = 0
     for pagenum, obj_id, page in zip(
         count(1),
         count(_OBJ_ID_FIRST_PAGE, step=_OBJS_PER_PAGE),
-        flatten(p.generate(fonts_, style, pagenum + 1) for p in items),
+        flatten(p.generate(res, style, pagenum + 1) for p in items),
     ):
         yield from page.to_atoms(obj_id)
 
@@ -363,10 +223,10 @@ def _doc_objects(
         )
     first_font_id = obj_id + _OBJS_PER_PAGE
 
-    yield from fonts_.to_objects(first_font_id)
+    yield from res.to_objects(first_font_id)
     yield from _write_headers(
         (obj_id - _OBJ_ID_FIRST_PAGE) // _OBJS_PER_PAGE + 1,
-        fonts_.to_resources(first_font_id),
+        res.to_atoms(first_font_id),
     )
 
 
@@ -380,7 +240,7 @@ _CATALOG_OBJ = (
 
 
 def _write_headers(
-    num_pages: int, fonts_: atoms.Dictionary
+    num_pages: int, resources: atoms.Dictionary
 ) -> Iterable[atoms.Object]:
     yield _CATALOG_OBJ
     yield (
@@ -402,4 +262,4 @@ def _write_headers(
             (b"Count", atoms.Int(num_pages)),
         ),
     )
-    yield OBJ_ID_RESOURCES, atoms.Dictionary((b"Font", fonts_))
+    yield OBJ_ID_RESOURCES, resources
