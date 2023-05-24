@@ -16,16 +16,16 @@ from typing import (
 from .common import RGB, HexColor, Pt, add_slots, setattr_frozen
 from .fonts.builtins import helvetica
 from .fonts.common import BuiltinTypeface, TrueType, Typeface
-from .fonts.registry import Registry
+from .resources import Resources
 from .typeset.common import (
     Chain,
     Command,
+    Passage,
     SetColor,
     SetFont,
     SetHyphens,
     SetLineSpacing,
     State,
-    Stretch,
 )
 from .typeset.hyphens import (
     Hyphenator,
@@ -175,7 +175,7 @@ class Style:
         else:
             raise TypeError(f"Cannot parse style from {s!r}")
 
-    def diff(self, r: Registry, base: StyleFull) -> Iterator[Command]:
+    def diff(self, r: Resources, base: StyleFull) -> Iterator[Command]:
         if (
             _differs(self.bold, base.bold)
             or _differs(self.italic, base.italic)
@@ -236,16 +236,16 @@ class StyleFull:
             s.hyphens or self.hyphens,
         )
 
-    def as_state(self, fr: Registry) -> State:
+    def as_state(self, res: Resources) -> State:
         return State(
-            fr.font(self.font, self.bold, self.italic),
+            res.font(self.font, self.bold, self.italic),
             self.size,
             self.color,
             self.line_spacing,
             self.hyphens,
         )
 
-    def diff(self, registry: Registry, base: StyleFull) -> Iterator[Command]:
+    def diff(self, res: Resources, base: StyleFull) -> Iterator[Command]:
         if not (
             self.bold == base.bold
             and self.italic == base.italic
@@ -253,7 +253,7 @@ class StyleFull:
             and self.size == base.size
         ):
             yield SetFont(
-                registry.font(self.font, self.bold, self.italic),
+                res.font(self.font, self.bold, self.italic),
                 self.size,
             )
         if self.color != base.color:
@@ -300,15 +300,15 @@ class StyledMixin:
 
     def flatten(
         self,
-        r: Registry,
+        r: Resources,
         base: StyleFull,
         todo: Iterator[Command] = iter(()),
-    ) -> Generator[Stretch, None, Iterator[Command]]:
+    ) -> Generator[Passage, None, Iterator[Command]]:
         todo = chain(todo, self.style.diff(r, base))
         newbase = base | self.style
         for item in self.content:
             if isinstance(item, str):
-                yield Stretch(Chain.squash(todo), item)
+                yield Passage(Chain.squash(todo), item)
             else:
                 todo = yield from item.flatten(r, newbase, todo)
         return chain(todo, base.diff(r, newbase))

@@ -8,7 +8,7 @@ import pytest
 
 from pdfje.atoms import LiteralStr, Real
 from pdfje.common import Char
-from pdfje.typeset.common import NO_OP, Chain, Slug, State, Stretch
+from pdfje.typeset.common import NO_OP, Chain, Passage, Slug, State
 from pdfje.typeset.words import (
     MixedBox,
     TrailingSpace,
@@ -112,12 +112,12 @@ class TestParse:
         assert list(words) == []
 
     def test_only_commands(self):
-        cmd, words = parse([Stretch(BLUE, ""), Stretch(BIG, "")], STATE)
+        cmd, words = parse([Passage(BLUE, ""), Passage(BIG, "")], STATE)
         assert cmd == Chain(eq_iter([BLUE, BIG]))
         assert list(words) == []
 
     def test_one_word(self):
-        cmd, words = parse([Stretch(BLUE, "complex ")], STATE)
+        cmd, words = parse([Passage(BLUE, "complex ")], STATE)
         assert cmd == BLUE
         assert list(words) == [
             Word(
@@ -131,7 +131,7 @@ class TestParse:
         ]
 
     def test_one_space(self):
-        cmd, words = parse([Stretch(BLUE, " ")], STATE)
+        cmd, words = parse([Passage(BLUE, " ")], STATE)
         assert cmd == BLUE
         assert list(words) == [
             Word((), TrailingSpace(20, 0), BLUE.apply(STATE))
@@ -140,10 +140,10 @@ class TestParse:
     def test_two_compound_words(self):
         cmd, words = parse(
             [
-                Stretch(BLUE, "bet"),
-                Stretch(BIG, "ter th"),
-                Stretch(GREEN, "an "),
-                Stretch(HUGE, ""),
+                Passage(BLUE, "bet"),
+                Passage(BIG, "ter th"),
+                Passage(GREEN, "an "),
+                Passage(HUGE, ""),
             ],
             STATE,
         )
@@ -199,7 +199,7 @@ class TestParse:
 
     def test_one_word_then_command(self):
         cmd, words = parse(
-            [Stretch(BLUE, "complex "), Stretch(RED, "")], STATE
+            [Passage(BLUE, "complex "), Passage(RED, "")], STATE
         )
         assert cmd == BLUE
         assert list(words) == [
@@ -218,7 +218,7 @@ class TestParse:
 
     def test_separated_words(self):
         cmd, words = parse(
-            [Stretch(BLUE, "complicated. Flat is  better ")], STATE
+            [Passage(BLUE, "complicated. Flat is  better ")], STATE
         )
         assert cmd == BLUE
         assert list(words) == [
@@ -253,7 +253,7 @@ class TestParse:
         ]
 
     def test_last_word_has_no_break(self):
-        cmd, words = parse([Stretch(BLUE, "complicated.  Flat")], STATE)
+        cmd, words = parse([Passage(BLUE, "complicated.  Flat")], STATE)
         assert cmd == BLUE
         assert list(words) == [
             Word(
@@ -273,7 +273,7 @@ class TestParse:
 
     def test_last_word_has_segments_but_no_break(self):
         cmd, words = parse(
-            [Stretch(BLUE, "complicated.  Fl"), Stretch(RED, "at")], STATE
+            [Passage(BLUE, "complicated.  Fl"), Passage(RED, "at")], STATE
         )
         assert cmd == BLUE
         assert list(words) == [
@@ -302,9 +302,9 @@ class TestParse:
             ),
         ]
 
-    def test_final_stretch_is_just_a_space(self):
+    def test_final_passage_is_just_a_space(self):
         cmd, words = parse(
-            [Stretch(BLUE, "complicated. "), Stretch(HUGE, " ")], STATE
+            [Passage(BLUE, "complicated. "), Passage(HUGE, " ")], STATE
         )
         assert cmd == BLUE
         assert list(words) == [
@@ -324,17 +324,17 @@ class TestParse:
             Word((), TrailingSpace(40, 0), multi(HUGE, BLUE).apply(STATE)),
         ]
 
-    def test_words_traversing_stretches(self):
+    def test_words_traversing_passages(self):
         cmd, words = parse(
             [
-                Stretch(BLUE, "comp"),
-                Stretch(HUGE, "li"),
-                Stretch(RED, ""),
-                Stretch(GREEN, "ca"),
-                Stretch(BLUE, ""),
-                Stretch(BIG, "t"),
-                Stretch(SMALL, "ed."),
-                Stretch(NORMAL, " Flat "),
+                Passage(BLUE, "comp"),
+                Passage(HUGE, "li"),
+                Passage(RED, ""),
+                Passage(GREEN, "ca"),
+                Passage(BLUE, ""),
+                Passage(BIG, "t"),
+                Passage(SMALL, "ed."),
+                Passage(NORMAL, " Flat "),
             ],
             STATE,
         )

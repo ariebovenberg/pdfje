@@ -106,10 +106,11 @@ Features:
     - ✅ Centering text
     - ✅ Justification
     - ✅ Hyphenation
-    - 🚧 Avoiding orphaned/widowed lines
+    - 🚧 Move lines between columns/pages to avoid widows/orphans
     - 🚧 Tex-style line breaking
-    - 🚧 Broader unicode support in text wrapping
     - 🚧 Headings (which stick to their paragraphs)
+    - 🚧 Loosening paragraphs to avoid orphans/widows
+    - 🚧 Broader unicode support in text wrapping
 - Drawing operations
     - ✅ Lines
     - ✅ Rectangles

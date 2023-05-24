@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
+from itertools import islice, tee
 from operator import attrgetter
 from typing import (
     Callable,
@@ -9,7 +10,9 @@ from typing import (
     Iterable,
     Iterator,
     Literal,
+    Protocol,
     Sequence,
+    TypeVar,
     final,
 )
 
@@ -18,7 +21,6 @@ from .common import (
     XY,
     Align,
     HexColor,
-    Pt,
     Sides,
     SidesLike,
     Streamable,
@@ -26,12 +28,17 @@ from .common import (
     black,
     flatten,
     pipe,
+    prepend,
     setattr_frozen,
 )
-from .fonts.registry import Registry
+from .page import Column, Page
+from .resources import Resources
 from .style import Span, Style, StyledMixin, StyleFull, StyleLike
-from .typeset.common import State, splitlines
-from .typeset.lines import Line, WrapDone, Wrapper
+from .typeset import firstfit
+from .typeset.common import Passage, State, max_lead, splitlines
+from .typeset.lines import Line
+from .typeset.words import WordLike, indent_first, parse
+from .units import Pt
 
 __all__ = [
     "Paragraph",
@@ -39,35 +46,6 @@ __all__ = [
     "Block",
     "Align",
 ]
-
-
-@final
-@add_slots
-@dataclass(frozen=True, init=False)
-class Column:
-    """A column to lay out block elements in.
-
-    Parameters
-    ----------
-    origin
-        The bottom left corner of the column. Can be parsed from a 2-tuple.
-    width
-        The width of the column.
-    height
-        The height of the column.
-
-    """
-
-    origin: XY
-    width: Pt
-    height: Pt
-
-    def __init__(
-        self, origin: XY | tuple[float, float], width: Pt, height: Pt
-    ) -> None:
-        setattr_frozen(self, "origin", XY.parse(origin))
-        setattr_frozen(self, "width", width)
-        setattr_frozen(self, "height", height)
 
 
 class Block(abc.ABC):
@@ -79,8 +57,16 @@ class Block(abc.ABC):
 
     @abc.abstractmethod
     def layout(
-        self, fr: Registry, col: ColumnFill, style: StyleFull
+        self, res: Resources, col: ColumnFill, style: StyleFull
     ) -> Generator[ColumnFill, Column, ColumnFill]:
+        ...
+
+    # why not a generator? Because a block may need to consume multiple
+    # columns to render itself, before starting to yield completed columns
+    @abc.abstractmethod
+    def fill(
+        self, res: Resources, style: StyleFull, cs: Iterator[ColumnFill], /
+    ) -> Iterator[ColumnFill]:
         ...
 
 
@@ -101,6 +87,7 @@ class Paragraph(Block, StyledMixin):
         The horizontal alignment of the text.
     indent
         The amount of space to indent the first line of the paragraph.
+    typeset
 
     Examples
     --------
@@ -148,29 +135,60 @@ class Paragraph(Block, StyledMixin):
         setattr_frozen(self, "align", Align.parse(align))
         setattr_frozen(self, "indent", indent)
 
+    def fill(
+        self,
+        res: Resources,
+        style: StyleFull,
+        cs: Iterator[ColumnFill],
+    ) -> Iterator[ColumnFill]:
+        style |= self.style
+        state = style.as_state(res)
+        passages = list(self.flatten(res, style))
+        lead = max_lead(passages, state)
+        # TODO: use in optimum_fit
+        # cs, branch = tee(cs)
+        # line_length = _iter_index(
+        #     flatten(
+        #         repeat(c.box.width, int(c.height_free // lead)) for c in branch
+        #     )
+        # )
+        breakpoint()
+        yield next(cs)
+
     def layout(
-        self, fr: Registry, col: ColumnFill, style: StyleFull
+        self, res: Resources, col: ColumnFill, style: StyleFull
     ) -> Generator[ColumnFill, Column, ColumnFill]:
         style |= self.style
-        state = style.as_state(fr)
-        for strs in splitlines(self.flatten(fr, style)):
-            wrap: Wrapper | WrapDone = Wrapper.start(strs, state, self.indent)
-            assert isinstance(wrap, Wrapper)  # spans is non-empty
-            col, state = yield from _layout_paragraph(wrap, col, self.align)
+        state = style.as_state(res)
+        passages = list(self.flatten(res, style))
+        lead = max_lead(passages, state)
+        for para in splitlines(passages):
+            col, state = yield from layout_paragraph(
+                para, col, self.align, self.indent, lead, state
+            )
         return col
 
 
-class Element(Streamable):
-    @property
-    @abc.abstractmethod
-    def height(self) -> Pt:
-        raise NotImplementedError()
+_T = TypeVar("_T")
+
+
+def _iter_index(it: Iterator[_T]) -> Callable[[int], _T]:
+    cache: list[_T] = []
+
+    def get(i: int) -> _T:
+        try:
+            return cache[i]
+        except IndexError:
+            cache.extend(islice(it, i - len(cache) + 1))
+            return cache[i]
+
+    return get
 
 
 @add_slots
 @dataclass(frozen=True)
-class ColumnFill(Iterable[bytes]):
-    col: Column
+class ColumnFill(Streamable):
+    box: Column
     blocks: Sequence[Iterable[bytes]]
     height_free: Pt
 
@@ -180,51 +198,64 @@ class ColumnFill(Iterable[bytes]):
 
     def add(self, e: Iterable[bytes], height: Pt) -> ColumnFill:
         return ColumnFill(
-            self.col, (*self.blocks, e), self.height_free - height
+            self.box, (*self.blocks, e), self.height_free - height
         )
 
     def cursor(self) -> XY:
-        return self.col.origin.add_y(self.height_free)
+        return self.box.origin.add_y(self.height_free)
 
     def __iter__(self) -> Iterator[bytes]:
         yield from flatten(self.blocks)
 
 
-def _layout_paragraph(
-    wrap: Wrapper,
-    fill: ColumnFill,
+def layout_paragraph(
+    content: Iterable[Passage],
+    col: ColumnFill,
     align: Align,
+    indent: Pt,
+    lead: Pt,
+    state: State,
 ) -> Generator[ColumnFill, Column, tuple[ColumnFill, State]]:
-    state = wrap.state
+    words: Iterator[WordLike] | None
+    cmd, words = parse(content, state)
+    state = cmd.apply(state)
+    words = indent_first(words, indent)
 
     # If the first line won't fit, start a new column and start over.
-    if wrap.lead > fill.height_free and fill.blocks:
-        col = yield fill
-        fill = ColumnFill.new(col)
+    if lead > col.height_free and col.blocks:
+        box = yield col
+        col = ColumnFill.new(box)
 
-    stack, w = wrap.fill(
-        fill.col.width, fill.height_free, allow_empty=bool(fill.blocks)
+    words, stack = firstfit.box(
+        words,
+        col.box.width,
+        col.height_free,
+        allow_empty=bool(col.blocks),
+        lead=lead,
     )
 
-    while isinstance(w, Wrapper):
-        col = yield fill.add(
+    while words:
+        box = yield col.add(
             _render_text(
-                fill.cursor(), stack, state, align, fill.col.width, wrap.lead
+                col.cursor(), stack, state, align, col.box.width, lead
             ),
-            len(stack) * wrap.lead,
+            len(stack) * lead,
         )
-        state = w.state
-        stack, w = w.fill(col.width, col.height, allow_empty=False)
-        fill = ColumnFill.new(col)
+        if stack and stack[-1].words:
+            state = stack[-1].words[-1].state
+        words, stack = firstfit.box(
+            words, box.width, box.height, allow_empty=False, lead=lead
+        )
+        col = ColumnFill.new(box)
 
     return (
-        fill.add(
+        col.add(
             _render_text(
-                fill.cursor(), stack, state, align, fill.col.width, wrap.lead
+                col.cursor(), stack, state, align, col.box.width, lead
             ),
-            len(stack) * wrap.lead,
+            len(stack) * lead,
         ),
-        w.state,
+        state,
     )
 
 
@@ -290,7 +321,11 @@ def _render_text(
 @add_slots
 @dataclass(frozen=True, init=False)
 class Rule(Block):
-    """A :class:`Block` that draws a horizontal line."""
+    """A :class:`Block` that draws a horizontal line as a section break.
+
+    i.e. if the rule would coincide with a page or column break,
+    it is not drawn.
+    """
 
     color: RGB
     margin: Sides
@@ -304,23 +339,86 @@ class Rule(Block):
         setattr_frozen(self, "margin", Sides.parse(margin))
 
     def layout(
-        self, _: Registry, fill: ColumnFill, __: StyleFull
+        self, _: Resources, fill: ColumnFill, __: StyleFull
     ) -> Generator[ColumnFill, Column, ColumnFill]:
         top, right, bottom, left = self.margin
         if fill.height_free < top + bottom:
             fill = ColumnFill.new((yield fill))
 
-        y = fill.col.origin.y + fill.height_free - top
-        x = fill.col.origin.x + left
+        y = fill.box.origin.y + fill.height_free - top
+        x = fill.box.origin.x + left
         return fill.add(
             _render_line(
                 XY(x, y),
-                XY(x + fill.col.width - left - right, y),
+                XY(x + fill.box.width - left - right, y),
                 self.color,
             ),
             top + bottom,
         )
 
+    def fill(
+        self, _: Resources, __: StyleFull, cs: Iterator[ColumnFill]
+    ) -> Iterator[ColumnFill]:
+        col = next(cs)
+        top, right, bottom, left = self.margin
+        if (height := top + bottom) > col.height_free:
+            # There is not enough room for the rule in the current column.
+            # Yield the column and start a new one.
+            # Because the column already serves as a separator, we don't
+            # need to draw the rule.
+            yield col
+        else:
+            y = col.box.origin.y + col.height_free - top
+            x = col.box.origin.x + left
+            yield col.add(
+                _render_line(
+                    XY(x, y),
+                    XY(col.box.origin.x + col.box.width - right, y),
+                    self.color,
+                ),
+                height,
+            )
+
 
 def _render_line(start: XY, end: XY, color: RGB) -> Streamable:
     yield b"%g %g m %g %g l %g %g %g RG S\n" % (*start, *end, *color)
+
+
+class Filler(Protocol):
+    def __call__(
+        self, nextcol: Iterator[ColumnFill], /
+    ) -> Iterator[ColumnFill]:
+        ...
+
+
+@dataclass(frozen=True)
+class PageFill:
+    base: Page
+    todo: Sequence[ColumnFill]
+    done: Sequence[ColumnFill]
+
+
+DocFill = Iterator[PageFill]
+
+
+def fill_columns(
+    doc: DocFill, f: Filler
+) -> tuple[DocFill, Sequence[PageFill]]:
+    trunk, branch = tee(doc)
+    return _fill_into(f(flatten(p.todo for p in branch)), trunk)
+
+
+def _fill_into(
+    cs: Iterable[ColumnFill], doc: Iterator[PageFill]
+) -> tuple[DocFill, Sequence[PageFill]]:
+    completed: list[PageFill] = []
+    for page in doc:
+        cols = list(islice(cs, len(page.todo)))
+        completed.append(
+            PageFill(
+                page.base, page.todo[len(cols) :], (*page.done, *cols)  # noqa
+            )
+        )
+        if len(cols) < len(page.todo):
+            break
+    return prepend(completed.pop(), doc), completed

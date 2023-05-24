@@ -18,7 +18,7 @@ from ..atoms import LiteralStr, Real
 from ..common import (
     RGB,
     Char,
-    NonEmtpyIterator,
+    NonEmptyIterator,
     Pos,
     Pt,
     Streamable,
@@ -31,7 +31,7 @@ from ..common import (
 from ..fonts.common import TEXTSPACE_TO_GLYPHSPACE, Font, Kern
 from .hyphens import Hyphenator
 
-_NEWLINE_RE = re.compile(r"(?:\r\n|\n)")
+_next_newline = re.compile(r"(?:\r\n|\n)").search
 
 T = TypeVar("T")
 
@@ -160,37 +160,37 @@ class State(Streamable):
 
 
 # NOTE: the result must be consumed in order, similar to itertools.groupby
-def splitlines(it: Iterable[Stretch]) -> Iterator[NonEmtpyIterator[Stretch]]:
+def splitlines(it: Iterable[Passage]) -> Iterator[NonEmptyIterator[Passage]]:
     it = iter(it)
     try:
-        transition: list[tuple[Stretch, Pos]] = [(next(it), 0)]
+        transition: list[tuple[Passage, Pos]] = [(next(it), 0)]
     except StopIteration:
         return
 
-    def _group() -> NonEmtpyIterator[Stretch]:
-        stretch, pos = transition.pop()
-        for stretch in prepend(stretch, it):
-            if (newline := _NEWLINE_RE.search(stretch.txt, pos)) is None:
-                yield Stretch(NO_OP, stretch.txt[pos:]) if pos else stretch
+    def _group() -> NonEmptyIterator[Passage]:
+        psg, pos = transition.pop()
+        for psg in prepend(psg, it):
+            if (newline := _next_newline(psg.txt, pos)) is None:
+                yield Passage(NO_OP, psg.txt[pos:]) if pos else psg
                 pos = 0
             else:
-                yield Stretch(
-                    NO_OP if pos else stretch.cmd,
-                    stretch.txt[pos : newline.start()],  # noqa
+                yield Passage(
+                    NO_OP if pos else psg.cmd,
+                    psg.txt[pos : newline.start()],  # noqa
                 )
-                transition.append((stretch, newline.end()))
+                transition.append((psg, newline.end()))
                 return
 
     while transition:
         yield _group()
 
 
-class Stretch(NamedTuple):
+class Passage(NamedTuple):
     cmd: Command
     txt: str
 
 
-def max_lead(s: Iterable[Stretch], state: State) -> Pt:
+def max_lead(s: Iterable[Passage], state: State) -> Pt:
     # FUTURE: we apply commands elsewhere, so doing it also here
     #         is perhaps a bit wasteful
     lead = state.lead
@@ -201,9 +201,7 @@ def max_lead(s: Iterable[Stretch], state: State) -> Pt:
 
 
 def _encode_kerning(
-    txt: str,
-    kerning: Sequence[Kern],
-    f: Font,
+    txt: str, kerning: Sequence[Kern], f: Font
 ) -> Iterable[LiteralStr | Real]:
     encoded = f.encode(txt)
     try:

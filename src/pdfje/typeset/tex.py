@@ -37,7 +37,7 @@ class Box:
     shrink: CumulativeWidth
     incl_space: CumulativeWidth
 
-    incl_hyphen: float
+    incl_hyphen: CumulativeWidth
     hyphenated: bool
     no_break: bool
 
@@ -89,7 +89,7 @@ def optimum_fit(
     """
     # FUTURE: The ragged case probably be optimized further -- by eliminating
     #         the fitness difference penalty, for example.
-    ratio = ratio_nostretch if ragged else ratio_stretchable
+    ratio = ratio_ragged if ragged else ratio_justified
     g = _BreakNetwork()
 
     pos = 0
@@ -202,7 +202,7 @@ def _fitness(r: Ratio) -> Fitness:
 _demerits: Callable[[_SinkNode], float] = attrgetter("demerits")
 
 
-def ratio_stretchable(
+def ratio_justified(
     measure: CumulativeWidth,
     stretch: CumulativeWidth,
     shrink: CumulativeWidth,
@@ -218,7 +218,7 @@ def ratio_stretchable(
         return (BIG + length / space) if length != space else 0
 
 
-def ratio_nostretch(
+def ratio_ragged(
     measure: CumulativeWidth,
     # Stretch/shrink aren't used, but they are necessary to make
     # the function interchangeable with the other `ratio` function above.

@@ -3,17 +3,17 @@ import pytest
 from pdfje import RGB, XY
 from pdfje.draw import Text
 from pdfje.fonts import helvetica, times_roman
-from pdfje.fonts.registry import Registry
 from pdfje.layout import Paragraph
+from pdfje.resources import Resources
 from pdfje.style import Span, Style
 from pdfje.typeset.common import (
     NO_OP,
     Chain,
+    Passage,
     SetColor,
     SetFont,
     SetHyphens,
     SetLineSpacing,
-    Stretch,
 )
 from pdfje.typeset.hyphens import default_hyphenator, never_hyphenate
 from tests.common import eq_iter
@@ -30,8 +30,8 @@ STYLE = Style(italic=True, color=RED).setdefault()
 
 
 @pytest.fixture
-def reg() -> Registry:
-    return Registry()
+def res() -> Resources:
+    return Resources()
 
 
 class TestStyle:
@@ -115,10 +115,10 @@ class TestStyleLikeUnion:
 
 
 class TestStyleDiff:
-    def test_empty(self, reg: Registry):
-        assert list(Style.EMPTY.diff(reg, STYLE)) == []
+    def test_empty(self, res: Resources):
+        assert list(Style.EMPTY.diff(res, STYLE)) == []
 
-    def test_no_changes(self, reg: Registry):
+    def test_no_changes(self, res: Resources):
         assert (
             list(
                 Style(
@@ -129,77 +129,77 @@ class TestStyleDiff:
                     size=STYLE.size,
                     line_spacing=STYLE.line_spacing,
                     hyphens=STYLE.hyphens,
-                ).diff(reg, STYLE)
+                ).diff(res, STYLE)
             )
             == []
         )
 
-    def test_font_change(self, reg):
-        assert list(Style(bold=True).diff(reg, STYLE)) == [
+    def test_font_change(self, res):
+        assert list(Style(bold=True).diff(res, STYLE)) == [
             SetFont(helvetica.bold_italic, 12)
         ]
-        assert list(Style(size=4).diff(reg, STYLE)) == [
+        assert list(Style(size=4).diff(res, STYLE)) == [
             SetFont(helvetica.italic, 4)
         ]
-        assert list(Style(font=times_roman).diff(reg, STYLE)) == [
-            SetFont(reg.font(times_roman, False, True), 12)
+        assert list(Style(font=times_roman).diff(res, STYLE)) == [
+            SetFont(res.font(times_roman, False, True), 12)
         ]
-        assert list(Style(italic=False).diff(reg, STYLE)) == [
+        assert list(Style(italic=False).diff(res, STYLE)) == [
             SetFont(helvetica.regular, 12)
         ]
 
         # several relative changes
         assert list(
-            Style(bold=True, italic=False, size=15).diff(reg, STYLE)
+            Style(bold=True, italic=False, size=15).diff(res, STYLE)
         ) == [SetFont(helvetica.bold, 15)]
-        assert list(Style(italic=False).diff(reg, STYLE)) == [
+        assert list(Style(italic=False).diff(res, STYLE)) == [
             SetFont(helvetica.regular, 12)
         ]
         assert list(
-            Style(font=times_roman, italic=False).diff(reg, STYLE)
-        ) == [SetFont(reg.font(times_roman, False, False), 12)]
+            Style(font=times_roman, italic=False).diff(res, STYLE)
+        ) == [SetFont(res.font(times_roman, False, False), 12)]
 
-    def test_color_change(self, reg: Registry):
-        assert list(Style(color=STYLE.color).diff(reg, STYLE)) == []
-        assert list(Style(color=GREEN).diff(reg, STYLE)) == [SetColor(GREEN)]
+    def test_color_change(self, res: Resources):
+        assert list(Style(color=STYLE.color).diff(res, STYLE)) == []
+        assert list(Style(color=GREEN).diff(res, STYLE)) == [SetColor(GREEN)]
 
-    def test_line_spacing_change(self, reg: Registry):
-        assert list(Style(line_spacing=1.25).diff(reg, STYLE)) == []
-        assert list(Style(line_spacing=1.5).diff(reg, STYLE)) == [
+    def test_line_spacing_change(self, res: Resources):
+        assert list(Style(line_spacing=1.25).diff(res, STYLE)) == []
+        assert list(Style(line_spacing=1.5).diff(res, STYLE)) == [
             SetLineSpacing(1.5)
         ]
 
-    def test_hyphens_change(self, reg: Registry):
-        assert list(Style(hyphens=default_hyphenator).diff(reg, STYLE)) == []
-        assert list(Style(hyphens=never_hyphenate).diff(reg, STYLE)) == [
+    def test_hyphens_change(self, res: Resources):
+        assert list(Style(hyphens=default_hyphenator).diff(res, STYLE)) == []
+        assert list(Style(hyphens=never_hyphenate).diff(res, STYLE)) == [
             SetHyphens(never_hyphenate)
         ]
         assert list(
             Style(hyphens=default_hyphenator).diff(
-                reg, STYLE | Style(hyphens=never_hyphenate)
+                res, STYLE | Style(hyphens=never_hyphenate)
             )
         ) == [SetHyphens(default_hyphenator)]
 
-    def test_combined_change(self, reg: Registry):
-        assert list(Style(font=times_roman, color=GREEN).diff(reg, STYLE)) == [
-            SetFont(reg.font(times_roman, False, True), 12),
+    def test_combined_change(self, res: Resources):
+        assert list(Style(font=times_roman, color=GREEN).diff(res, STYLE)) == [
+            SetFont(res.font(times_roman, False, True), 12),
             SetColor(GREEN),
         ]
 
 
 class TestFlatten:
-    def test_empty(self, reg: Registry):
-        assert list(Paragraph([], Style(color=BLUE)).flatten(reg, STYLE)) == []
+    def test_empty(self, res: Resources):
+        assert list(Paragraph([], Style(color=BLUE)).flatten(res, STYLE)) == []
 
-    def test_already_flat(self, reg: Registry):
+    def test_already_flat(self, res: Resources):
         result = list(
             Paragraph(
                 ["Beautiful is ", "better", " than ugly."],
                 Style(bold=True, size=14, color=GREEN),
-            ).flatten(reg, STYLE)
+            ).flatten(res, STYLE)
         )
         assert result == [
-            Stretch(
+            Passage(
                 Chain(
                     eq_iter(
                         [
@@ -210,11 +210,11 @@ class TestFlatten:
                 ),
                 "Beautiful is ",
             ),
-            Stretch(NO_OP, "better"),
-            Stretch(NO_OP, " than ugly."),
+            Passage(NO_OP, "better"),
+            Passage(NO_OP, " than ugly."),
         ]
 
-    def test_hyphenate_toggle(self, reg: Registry):
+    def test_hyphenate_toggle(self, res: Resources):
         par = Paragraph(
             [
                 "Beautiful is better than ",
@@ -222,20 +222,20 @@ class TestFlatten:
                 " Explicit is better than implicit.",
             ]
         )
-        result = list(par.flatten(reg, STYLE))
+        result = list(par.flatten(res, STYLE))
         assert result == [
-            Stretch(NO_OP, "Beautiful is better than "),
-            Stretch(
+            Passage(NO_OP, "Beautiful is better than "),
+            Passage(
                 SetHyphens(never_hyphenate),
                 " ugly.",
             ),
-            Stretch(
+            Passage(
                 SetHyphens(default_hyphenator),
                 " Explicit is better than implicit.",
             ),
         ]
 
-    def test_nested(self, reg: Registry):
+    def test_nested(self, res: Resources):
         result = list(
             Paragraph(
                 [
@@ -259,17 +259,17 @@ class TestFlatten:
                     Span(" Complex is better than complicated.", Style.EMPTY),
                 ],
                 Style(size=14),
-            ).flatten(reg, STYLE)
+            ).flatten(res, STYLE)
         )
         assert result == [
-            Stretch(
+            Passage(
                 SetFont(helvetica.italic, 14), "Beautiful is better than "
             ),
-            Stretch(
+            Passage(
                 Chain(eq_iter([SetColor(GREEN), SetHyphens(never_hyphenate)])),
                 " ugly.",
             ),
-            Stretch(
+            Passage(
                 Chain(
                     eq_iter(
                         [
@@ -281,11 +281,11 @@ class TestFlatten:
                 ),
                 " Explicit is better ",
             ),
-            Stretch(
+            Passage(
                 Chain(
                     eq_iter(
                         [
-                            SetFont(reg.font(times_roman, False, True), 20),
+                            SetFont(res.font(times_roman, False, True), 20),
                             SetColor(BLUE),
                             SetLineSpacing(2),
                         ]
@@ -293,7 +293,7 @@ class TestFlatten:
                 ),
                 "than",
             ),
-            Stretch(
+            Passage(
                 Chain(
                     eq_iter(
                         [
@@ -305,12 +305,12 @@ class TestFlatten:
                 ),
                 " implicit",
             ),
-            Stretch(SetColor(GREEN), "."),
-            Stretch(
+            Passage(SetColor(GREEN), "."),
+            Passage(
                 Chain(eq_iter([SetColor(RED), SetFont(helvetica.italic, 14)])),
                 " Simple is better than complex.",
             ),
-            Stretch(NO_OP, " Complex is better than complicated."),
+            Passage(NO_OP, " Complex is better than complicated."),
         ]
 
 

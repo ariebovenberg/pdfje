@@ -16,9 +16,9 @@ from .common import (
     pipe,
     setattr_frozen,
 )
-from .fonts.registry import Registry
+from .resources import Resources
 from .style import Span, Style, StyledMixin, StyleFull, StyleLike
-from .typeset.common import Command, State, Stretch, max_lead, splitlines
+from .typeset.common import Command, Passage, State, max_lead, splitlines
 from .typeset.lines import Line as TextLine
 from .typeset.words import parse as parse_words
 
@@ -40,7 +40,7 @@ class Drawing(abc.ABC):
     __slots__ = ()
 
     @abc.abstractmethod
-    def render(self, f: Registry, s: StyleFull, /) -> Streamable:
+    def render(self, r: Resources, s: StyleFull, /) -> Streamable:
         ...
 
 
@@ -75,7 +75,7 @@ class Line(Drawing):
         setattr_frozen(self, "end", XY.parse(end))
         setattr_frozen(self, "stroke", stroke and RGB.parse(stroke))
 
-    def render(self, _: Registry, __: StyleFull, /) -> Streamable:
+    def render(self, _: Resources, __: StyleFull, /) -> Streamable:
         yield b"%g %g m %g %g l " % (*self.start, *self.end)
         yield from _finish(None, self.stroke, False)
 
@@ -121,7 +121,7 @@ class Rect(Drawing):
         setattr_frozen(self, "fill", fill and RGB.parse(fill))
         setattr_frozen(self, "stroke", stroke and RGB.parse(stroke))
 
-    def render(self, _: Registry, __: StyleFull, /) -> Streamable:
+    def render(self, _: Resources, __: StyleFull, /) -> Streamable:
         yield b"%g %g %g %g re " % (*self.origin, self.width, self.height)
         yield from _finish(self.fill, self.stroke, False)
 
@@ -167,7 +167,7 @@ class Ellipse(Drawing):
         setattr_frozen(self, "fill", fill and RGB.parse(fill))
         setattr_frozen(self, "stroke", stroke and RGB.parse(stroke))
 
-    def render(self, _: Registry, __: StyleFull, /) -> Streamable:
+    def render(self, _: Resources, __: StyleFull, /) -> Streamable:
         yield from _ellipse(
             self.center, self.width, self.height, self.fill, self.stroke
         )
@@ -209,7 +209,7 @@ class Circle(Drawing):
         setattr_frozen(self, "fill", fill and RGB.parse(fill))
         setattr_frozen(self, "stroke", stroke and RGB.parse(stroke))
 
-    def render(self, _: Registry, __: StyleFull, /) -> Streamable:
+    def render(self, _: Resources, __: StyleFull, /) -> Streamable:
         width = self.radius * 2
         yield from _ellipse(self.center, width, width, self.fill, self.stroke)
 
@@ -311,7 +311,7 @@ class Polyline(Drawing):
         setattr_frozen(self, "fill", fill and RGB.parse(fill))
         setattr_frozen(self, "stroke", stroke and RGB.parse(stroke))
 
-    def render(self, _: Registry, __: StyleFull, /) -> Streamable:
+    def render(self, _: Resources, __: StyleFull, /) -> Streamable:
         it = iter(self.points)
         try:
             yield b"%g %g m " % next(it)
@@ -363,20 +363,20 @@ class Text(Drawing, StyledMixin):
                 "positioned text."
             )
 
-    def render(self, r: Registry, s: StyleFull, /) -> Streamable:
+    def render(self, r: Resources, s: StyleFull, /) -> Streamable:
         state = s.as_state(r)
         yield b"BT\n%g %g Td\n" % self.loc.astuple()
         yield from state
-        stretches = list(self.flatten(r, s))
-        lead = max_lead(stretches, state)
+        passages = list(self.flatten(r, s))
+        lead = max_lead(passages, state)
         yield from _pick_renderer(self.align)(
-            into_lines(splitlines(stretches), state), lead, 0
+            into_lines(splitlines(passages), state), lead, 0
         )
         yield b"ET\n"
 
 
 def into_lines(
-    split: Iterable[Iterable[Stretch]], state: State
+    split: Iterable[Iterable[Passage]], state: State
 ) -> Iterator[tuple[Command, TextLine]]:
     for s in split:
         cmd, [*words] = parse_words(s, state)

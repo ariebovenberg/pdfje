@@ -7,15 +7,13 @@ import pytest
 from hypothesis import given
 from hypothesis.strategies import text
 
-from pdfje import XY, AutoPage, Document, Page, blue, lime, red
-from pdfje.document import Rotation
+from pdfje import XY, AutoPage, Column, Document, Page, blue, lime, red
 from pdfje.draw import Circle, Ellipse, Line, Polyline, Rect, Text
 from pdfje.fonts import TrueType, courier, helvetica, times_roman
-from pdfje.layout import Block, Column, Paragraph, Rule
+from pdfje.layout import Block, Paragraph, Rule
+from pdfje.page import Rotation
 from pdfje.style import Span, Style, bold, italic, regular
 from pdfje.units import A4, A5, A6, inch, mm
-
-from .common import approx
 
 try:
     import fontTools  # noqa
@@ -76,27 +74,6 @@ def test_exotic_strings(s, dejavu):
             [AutoPage([Paragraph(s, Style(font=dejavu)), Paragraph(s)])]
         ).write()
     ).endswith(b"%%EOF\n")
-
-
-class TestPage:
-    def test_default_column(self):
-        p = Page(size=A5)
-        assert len(p.columns) == 1
-        assert p.columns[0].width < A5.x
-        assert p.columns[0].height < A5.y
-
-    def test_one_column_by_margins(self):
-        [column] = Page(size=A5, margin=(20, 30)).columns
-        assert column.origin.x == approx(30)
-        assert column.origin.y == approx(20)
-        assert column.width == approx(A5.x - 60)
-        assert column.height == approx(A5.y - 40)
-
-    def test_add(self):
-        p = Page()
-        p2 = p.add(Circle((0, 0), 10))
-        assert p == Page()
-        assert p2 == Page([Circle((0, 0), 10)])
 
 
 class TestAutopage:

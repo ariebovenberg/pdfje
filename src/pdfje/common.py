@@ -34,11 +34,11 @@ first = itemgetter(0)
 second = itemgetter(1)
 Ordinal = int  # a unicode code point
 NonEmptySequence = Sequence
-NonEmtpyIterator = Iterator
 
 Tclass = TypeVar("Tclass", bound=type)
 T = TypeVar("T")
 U = TypeVar("U")
+NonEmptyIterator = Iterator[T]
 
 
 def prepend(i: T, it: Iterable[T]) -> Iterator[T]:

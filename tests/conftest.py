@@ -22,7 +22,7 @@ def outfile(tmpdir, request) -> Path:
     return (
         base
         / "-".join(
-            [func.__module__.strip("tests."), func.__qualname__]
+            [func.__module__[6:], func.__qualname__]  # remove "tests." prefix
         ).replace(".", "-")
     ).with_suffix(".pdf")
 
