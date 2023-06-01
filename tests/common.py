@@ -24,8 +24,10 @@ from pdfje.fonts.common import (
     KerningTable,
     kern,
 )
-from pdfje.typeset.common import Chain, Command, SetColor, SetFont, State
+from pdfje.typeset.common import Chain, Command, SetColor, SetFont, Slug, State
 from pdfje.typeset.hyphens import Hyphenator, never_hyphenate
+from pdfje.typeset.lines import Line
+from pdfje.typeset.words import WithCmd, Word, WordLike
 
 T = TypeVar("T")
 
@@ -124,6 +126,100 @@ HUGE = SetFont(FONT, 20)
 BIG = SetFont(FONT, 15)
 NORMAL = SetFont(FONT, 10)
 SMALL = SetFont(FONT, 5)
+
+LOREM_IPSUM = """\
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. \
+Integer sed aliquet justo. Donec eu ultricies velit, porta pharetra massa. \
+Ut non augue a urna iaculis vulputate ut sit amet sem. \
+Nullam lectus felis, rhoncus sed convallis a, egestas semper risus. \
+Fusce gravida metus non vulputate vestibulum. \
+Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere \
+cubilia curae; Donec placerat suscipit velit. \
+Mauris tincidunt lorem a eros eleifend tincidunt. \
+Maecenas faucibus imperdiet massa quis pretium. Integer in lobortis nisi. \
+Mauris at odio nec sem volutpat aliquam. Aliquam erat volutpat.\
+
+Fusce at vehicula justo. Vestibulum eget viverra velit. \
+Vivamus et nisi pulvinar, elementum lorem nec, volutpat leo. \
+Aliquam erat volutpat. Sed tristique quis arcu vitae vehicula. \
+Morbi egestas vel diam eget dapibus. Donec sit amet lorem turpis. \
+Maecenas ultrices nunc vitae enim scelerisque tempus. \
+Maecenas aliquet dui non hendrerit viverra. \
+Aliquam fringilla, est sit amet gravida convallis, elit ipsum efficitur orci, \
+eget convallis neque nunc nec lorem. Nam nisl sem, \
+tristique a ultrices sed, finibus id enim.
+
+Etiam vel dolor ultricies, gravida felis in, vestibulum magna. \
+In diam ex, elementum ut massa a, facilisis sollicitudin lacus. \
+Integer lacus ante, ullamcorper ac mauris eget, rutrum facilisis velit. \
+Mauris eu enim efficitur, malesuada ipsum nec, sodales enim. \
+Nam ac tortor velit. Suspendisse ut leo a felis aliquam dapibus ut a justo. \
+Vestibulum sed commodo tortor. Sed vitae enim ipsum. \
+Duis pellentesque dui et ipsum suscipit, in semper odio dictum.\
+
+Sed in fermentum leo. Donec maximus suscipit metus. \
+Nulla convallis tortor mollis urna maximus mattis. \
+Sed aliquet leo ac sem aliquam, et ultricies mauris maximus. \
+Cras orci ex, fermentum nec purus non, molestie venenatis odio. \
+Etiam vitae sollicitudin nisl. Sed a ullamcorper velit.\
+
+Aliquam congue aliquet eros scelerisque hendrerit. Vestibulum quis ante ex. \
+Fusce venenatis mauris dolor, nec mattis libero pharetra feugiat. \
+Pellentesque habitant morbi tristique senectus et netus et malesuada \
+fames ac turpis egestas. Cras vitae nisl molestie augue finibus lobortis. \
+In hac habitasse platea dictumst. Maecenas rutrum interdum urna, \
+ut finibus tortor facilisis ac. Donec in fringilla mi. \
+Sed molestie accumsan nisi at mattis. \
+Integer eget orci nec urna finibus porta. \
+Sed eu dui vel lacus pulvinar blandit sed a urna. \
+Quisque lacus arcu, mattis vel rhoncus hendrerit, dapibus sed massa. \
+Vivamus sed massa est. In hac habitasse platea dictumst. \
+Nullam volutpat sapien quis tincidunt sagittis.\
+"""
+
+ZEN_OF_PYTHON = """\
+Beautiful is better than ugly.
+Explicit is better than implicit.
+Simple is better than complex.
+Complex is better than complicated.
+Flat is better than nested.
+Sparse is better than dense.
+Readability counts.
+Special cases aren't special enough to break the rules.
+Although practicality beats purity.
+Errors should never pass silently.
+Unless explicitly silenced.
+In the face of ambiguity, refuse the temptation to guess.
+There should be one — and preferably only one — obvious way to do it.
+Although that way may not be obvious at first unless you're Dutch.
+Now is better than never.
+Although never is often better than *right* now.
+If the implementation is hard to explain, it's a bad idea.
+If the implementation is easy to explain, it may be a good idea.
+Namespaces are one honking great idea — let's do more of those!"""
+
+
+def plaintext(ws: Iterable[WordLike] | Line) -> str:
+    if isinstance(ws, Line):
+        body = "".join(map(_text_from_word, ws.words))
+        # FUTURE: this assumption that we can strip any trailing hyphen is
+        # not true in *all* cases -- but good enough for our tests.
+        return body.rstrip("-") if body.endswith("-") else (body + " ")
+    else:
+        return "".join(map(_text_from_word, ws))
+
+
+def _text_from_word(w: WordLike) -> str:
+    word: Word = w.word if isinstance(w, WithCmd) else w
+    body = "".join(
+        b.txt if isinstance(b, Slug) else "".join(p.txt for p, _ in b.segments)
+        for b in word.boxes
+    )
+
+    if w.tail:
+        body += " "
+
+    return body
 
 
 if TYPE_CHECKING:

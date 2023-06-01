@@ -233,10 +233,6 @@ class Slug:
     width: Pt
     state: State
 
-    @property
-    def lead(self) -> Pt:
-        return self.state.lead
-
     def last(self) -> Char:
         return self.txt[-1]
 

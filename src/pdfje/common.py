@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass, fields
-from functools import wraps
 from itertools import chain, tee
 from operator import itemgetter
 from typing import (
@@ -19,7 +18,6 @@ from typing import (
     TypeVar,
     Union,
     final,
-    no_type_check,
     overload,
 )
 
@@ -45,34 +43,25 @@ def prepend(i: T, it: Iterable[T]) -> Iterator[T]:
     return chain((i,), it)
 
 
-def always(v: T) -> Callable[..., T]:
-    return lambda *_, **__: v
+@dataclass(frozen=True, repr=False)
+class always(Generic[T]):
+    __slots__ = ("_v",)
+
+    _v: T
+
+    def __call__(self, *_: Any, **__: Any) -> T:
+        return self._v
+
+    def __repr__(self) -> str:
+        return f"always({self._v!r})"
+
+
+def peek(it: Iterator[T]) -> tuple[T, Iterator[T]]:
+    branch, it = tee(it)
+    return next(branch), it
 
 
 setattr_frozen = object.__setattr__
-
-
-class BranchableIterator(Iterator[T]):
-    __slots__ = ("_it",)
-
-    def __init__(self, it: Iterable[T]) -> None:
-        self._it = iter(it)
-
-    def __iter__(self) -> BranchableIterator[T]:
-        return self
-
-    def __next__(self) -> T:
-        return next(self._it)
-
-    def branch(self) -> BranchableIterator[T]:
-        # Performance note: as branches are garbage collected,
-        # the tee() objects appear to properly free their memory.
-        self._it, branch = tee(self._it)
-        return BranchableIterator(branch)
-
-    def prepend(self, i: T) -> BranchableIterator[T]:
-        self._it = prepend(i, self._it)
-        return self
 
 
 # adapted from github.com/ericvsmith/dataclasses
@@ -101,7 +90,8 @@ def add_slots(cls: Tclass) -> Tclass:  # pragma: no cover
 @add_slots
 @dataclass(frozen=True, repr=False)
 class XY(Sequence[float]):
-    """Represents a point, vector, or size in 2D space.
+    """Represents a point, vector, or size in 2D space, where the first
+    coordinate is the horizontal component and the second is the vertical one.
 
     This class supports some basic operators:
 
@@ -367,26 +357,6 @@ white = RGB(1, 1, 1)
 yellow = RGB(1, 1, 0)
 magenta = RGB(1, 0, 1)
 cyan = RGB(0, 1, 1)
-
-
-Tcall = TypeVar("Tcall", bound=Callable[..., Any])
-
-
-# This makes the generator function behave like a "classic coroutine"
-# as described in fluentpython.com/extra/classic-coroutines.
-# Such a coroutine doesn't output anything on the first `yield`.
-# This allows the caller to use the `.send()` method immediately.
-def skips_to_first_yield(func: Tcall, /) -> Tcall:
-    """Decorator which primes a generator func by calling the first next()"""
-
-    @no_type_check
-    @wraps(func)
-    def primer(*args, **kwargs):
-        gen = func(*args, **kwargs)
-        next(gen)
-        return gen
-
-    return primer  # type: ignore[no-any-return]
 
 
 @add_slots

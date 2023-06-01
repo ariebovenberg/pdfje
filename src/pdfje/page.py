@@ -7,7 +7,15 @@ from typing import Iterable, Iterator, Literal, Sequence, final
 
 from . import atoms
 from .atoms import OBJ_ID_PAGETREE, OBJ_ID_RESOURCES
-from .common import XY, Sides, SidesLike, add_slots, flatten, setattr_frozen
+from .common import (
+    XY,
+    Sides,
+    SidesLike,
+    Streamable,
+    add_slots,
+    flatten,
+    setattr_frozen,
+)
 from .draw import Drawing
 from .resources import Resources
 from .style import StyleFull
@@ -50,7 +58,7 @@ class Column:
 class RenderedPage:
     rotate: Rotation
     size: XY
-    stream: Iterable[bytes]
+    stream: Streamable
 
     def to_atoms(self, i: atoms.ObjectID) -> Iterable[atoms.Object]:
         yield i, atoms.Dictionary(
@@ -138,23 +146,23 @@ class Page:
             (*self.content, d), self.size, self.rotate, columns=self.columns
         )
 
-    def generate(
-        self, f: Resources, s: StyleFull, pnum: int, /
+    def render(
+        self, r: Resources, s: StyleFull, pnum: int, /
     ) -> Iterator[RenderedPage]:
         yield RenderedPage(
             self.rotate,
             self.size,
-            flatten(map(methodcaller("render", f, s), self.content)),
+            flatten(map(methodcaller("render", r, s), self.content)),
         )
 
     def fill(
-        self, f: Resources, s: StyleFull, extra: Iterable[bytes]
+        self, r: Resources, s: StyleFull, extra: Iterable[bytes]
     ) -> RenderedPage:
         return RenderedPage(
             self.rotate,
             self.size,
             chain(
-                flatten(map(methodcaller("render", f, s), self.content)),
+                flatten(map(methodcaller("render", r, s), self.content)),
                 extra,
             ),
         )

@@ -1,4 +1,4 @@
-from pdfje import Page
+from pdfje import XY, Column, Page
 from pdfje.draw import Circle
 from pdfje.units import A5
 
@@ -24,3 +24,8 @@ class TestPage:
         p2 = p.add(Circle((0, 0), 10))
         assert p == Page()
         assert p2 == Page((Circle((0, 0), 10),))
+
+
+class TestColumn:
+    def test_init(self):
+        assert Column((1, 2), 3, 4) == Column(XY(1, 2), 3, 4)
