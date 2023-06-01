@@ -1,5 +1,6 @@
 from .common import RGB, XY, black, blue, cyan, lime, magenta, red, yellow
-from .document import AutoPage, Document
+from .document import Document
+from .layout.pages import AutoPage
 from .page import Column, Page
 
 __version__ = __import__("importlib.metadata").metadata.version(__name__)

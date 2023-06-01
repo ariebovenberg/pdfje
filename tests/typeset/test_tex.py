@@ -154,6 +154,19 @@ class TestOptimalBreaks:
         with pytest.raises(NoFeasibleBreaks):
             optimum_fit(boxes, lambda _: 130, 1)
 
+    def test_nobreak_box(self):
+        boxes = [
+            spaced_box(10, space=5, stretch=0, shrink=0),
+            spaced_box(90, space=5, stretch=5, shrink=3),
+            spaced_box(125, space=5, stretch=7, shrink=4, no_break=True),
+            # -- need a break here, but it's not feasible because no_break --
+            spaced_box(150, space=5, stretch=10, shrink=6),
+            spaced_box(200, space=5, stretch=15, shrink=9),
+            spaced_box(250, space=5, stretch=20, shrink=12),
+        ]
+        with pytest.raises(NoFeasibleBreaks):
+            optimum_fit(boxes, lambda _: 130, 1)
+
     def test_one_obvious_optimum(self):
         boxes = [
             spaced_box(10, space=5, stretch=0, shrink=0),

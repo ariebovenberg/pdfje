@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from pdfje import XY, AutoPage, Document, Page
+from pdfje import XY, AutoPage, Column, Document, Page
 from pdfje.draw import Text
 from pdfje.fonts import TrueType
-from pdfje.layout import Column, Paragraph
+from pdfje.layout import Paragraph
 from pdfje.style import Span, Style, italic
 from pdfje.units import inch, mm
 

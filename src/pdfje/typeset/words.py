@@ -77,10 +77,6 @@ class MixedBox:
     def width(self) -> Pt:
         return sum(s.width for s, _ in self.segments)
 
-    @property
-    def lead(self) -> Pt:
-        return max(s.lead for s, _ in self.segments)
-
     def encode_into_line(
         self, line: Iterable[LiteralStr | Real]
     ) -> Generator[bytes, None, Iterable[LiteralStr | Real]]:
@@ -94,6 +90,8 @@ class MixedBox:
 @add_slots
 @dataclass(frozen=True)
 class Word:
+    # FUTURE: defer hyphenation until it is absolutely necessary.
+    #         this would improve performance
     boxes: Sequence[Slug | MixedBox]
     tail: TrailingSpace | None
     state: State
@@ -179,13 +177,6 @@ class Word:
     def width(self) -> Pt:
         return self.pruned_width() + (self.tail.width if self.tail else 0)
 
-    def lead(self) -> Pt:
-        return (
-            max((s.lead for s in self.boxes))
-            if self.boxes
-            else self.state.lead
-        )
-
     def with_cmd(self, c: Command) -> WithCmd | Word:
         if c is NO_OP:
             return self
@@ -229,9 +220,6 @@ class WithCmd:
     @property
     def tail(self) -> TrailingSpace | None:
         return self.word.tail
-
-    def lead(self) -> Pt:
-        return self.word.lead()
 
     def without_init_kern(self) -> WithCmd:
         return WithCmd(self.word.without_init_kern(), self.cmd)

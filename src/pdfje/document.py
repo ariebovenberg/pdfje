@@ -4,95 +4,19 @@ import os
 from dataclasses import dataclass
 from itertools import count, islice
 from pathlib import Path
-from typing import IO, Callable, Generator, Iterable, Iterator, final, overload
+from typing import IO, Iterable, Iterator, final, overload
 
 from . import atoms
 from .atoms import OBJ_ID_PAGETREE, OBJ_ID_RESOURCES
-from .common import (
-    add_slots,
-    always,
-    flatten,
-    setattr_frozen,
-    skips_to_first_yield,
-)
-from .layout import Block, ColumnFill, Paragraph
-from .page import Column, Page, RenderedPage
+from .common import add_slots, flatten, setattr_frozen
+from .layout import Block, Paragraph
+from .layout.pages import AutoPage
+from .page import Page
 from .resources import Resources
 from .style import Style, StyleFull, StyleLike
 
 _OBJ_ID_FIRST_PAGE: atoms.ObjectID = OBJ_ID_RESOURCES + 1
 _OBJS_PER_PAGE = 2
-
-
-@final
-@add_slots
-@dataclass(frozen=True, init=False)
-class AutoPage:
-    """Automatically lays out content on multiple pages.
-
-    Parameters
-    ----------
-    content: ~typing.Iterable[~pdfje.Block | str] | ~pdfje.Block | str
-        The content to lay out on the pages. Can be parsed from single string
-        or block.
-    template: ~pdfje.Page | ~typing.Callable[[int], ~pdfje.Page]
-        A page to use as a template for the layout. If a callable is given,
-        it is called with the page number as the only argument to generate
-        the page. Defaults to the default :class:`Page`.
-
-    """
-
-    content: Iterable[str | Block]
-    template: Callable[[int], Page]
-
-    def __init__(
-        self,
-        content: str | Block | Iterable[Block | str],
-        template: Page | Callable[[int], Page] = always(Page()),
-    ) -> None:
-        if isinstance(content, str):
-            content = [Paragraph(content)]
-        elif isinstance(content, Block):
-            content = [content]
-        setattr_frozen(self, "content", content)
-
-        if isinstance(template, Page):
-            template = always(template)
-        setattr_frozen(self, "template", template)
-
-    def generate(
-        self, res: Resources, style: StyleFull, pnum: int, /
-    ) -> Iterator[RenderedPage]:
-        gen = self._chained_blocks_layout(res, style)
-        for page in map(self.template, count(pnum)):  # pragma: no branch
-            filled_columns = []
-            for col in page.columns:
-                try:
-                    filled_columns.append(gen.send(col))
-                except StopIteration:
-                    break
-            else:
-                yield page.fill(res, style, flatten(filled_columns))
-                continue  # there's still content, so keep on paging
-
-            if filled_columns:
-                yield page.fill(res, style, flatten(filled_columns))
-            return
-
-    @skips_to_first_yield
-    def _chained_blocks_layout(
-        self, r: Resources, s: StyleFull, /
-    ) -> Generator[ColumnFill, Column, None]:
-        fill = ColumnFill.new((yield))  # type: ignore[misc]
-        for b in self.content:
-            fill = yield from _as_block(b).layout(r, fill, s)
-        yield fill
-
-
-def _as_block(b: str | Block) -> Block:
-    if isinstance(b, str):
-        return Paragraph(b)
-    return b
 
 
 @final
@@ -210,10 +134,12 @@ def _doc_objects(
 ) -> Iterator[atoms.Object]:
     res = Resources()
     obj_id = pagenum = 0
+    # FUTURE: the scoping of `pagenum` is a bit tricky here. Find a better
+    #         way to do this -- or add a specific test.
     for pagenum, obj_id, page in zip(
         count(1),
         count(_OBJ_ID_FIRST_PAGE, step=_OBJS_PER_PAGE),
-        flatten(p.generate(res, style, pagenum + 1) for p in items),
+        flatten(p.render(res, style, pagenum + 1) for p in items),
     ):
         yield from page.to_atoms(obj_id)
 

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Iterable, Iterator, TypeVar
 __all__ = ["pairwise"]
 
 
-if sys.version_info < (3, 10) or TYPE_CHECKING:
+if sys.version_info < (3, 10) or TYPE_CHECKING:  # pragma: no cover
     T = TypeVar("T")
 
     def pairwise(i: Iterable[T]) -> Iterator[tuple[T, T]]:

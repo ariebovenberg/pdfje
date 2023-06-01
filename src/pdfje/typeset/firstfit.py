@@ -1,26 +1,82 @@
 "A simple first-fit line wrapping algorithm."
 from __future__ import annotations
 
-from typing import Sequence
+from itertools import tee
+from typing import Iterator, NamedTuple, Sequence
 
-from ..common import NonEmptyIterator, Pt, prepend
+from ..common import XY, NonEmptyIterator, Pt, prepend
 from .lines import Line
 from .words import WordLike
 
 
-def box(
-    ws: NonEmptyIterator[WordLike] | None,
-    width: Pt,
-    height: Pt,
+def fill(
+    ws: Iterator[WordLike] | None,
+    columns: Iterator[XY],
     allow_empty: bool,
     lead: Pt,
-) -> tuple[NonEmptyIterator[WordLike] | None, Sequence[Line]]:
+) -> Iterator[Sequence[Line]]:
+    "Fill the given columns with text, avoiding orphans where possible."
+    col = next(columns)
+    ws, lines, ws_undo = take_box(ws, col, allow_empty, lead)
+    # In case of an avoidable orphan, start over
+    if ws and len(lines) == 1 and allow_empty:
+        ws = ws_undo
+        lines = ()
+    elif not ws:
+        yield lines
+        return
+
+    col = next(columns)
+    while True:
+        lines_prev = lines
+        ws_undo_prev = ws_undo
+        ws, lines, ws_undo = take_box(ws, col, False, lead)
+        # case: paragraph not done. Continue to next column.
+        if ws:
+            yield lines_prev
+            col = next(columns)
+        # case: a potentially fixable orphan
+        elif len(lines) == 1 and len(lines_prev) > 2 and col.y >= lead * 2:
+            # FUTURE: optimize the case where the column widths are the same,
+            #         and we don't need to re-typeset the last line.
+            assert ws_undo_prev is not None
+            ws_undo_prev, _branch = tee(ws_undo_prev)
+            _, _lines_new, ws_undo = take_box(_branch, col, False, lead)
+            if len(_lines_new) == 1:
+                break  # our attempt to fix the orphan failed. We're done.
+            else:
+                lines = lines_prev[:-1]
+                ws = ws_undo_prev
+        # case: we're done, but no (fixable) orphan.
+        else:
+            break
+
+    yield lines_prev
+    yield lines
+
+
+class _FilledBox(NamedTuple):
+    rest: NonEmptyIterator[WordLike] | None
+    lines: Sequence[Line]
+    rest_incl_lastline: NonEmptyIterator[WordLike] | None
+
+
+def take_box(
+    ws: NonEmptyIterator[WordLike] | None,
+    space: XY,
+    allow_empty: bool,
+    lead: Pt,
+) -> _FilledBox:
+    width, height = space
     max_lines = max(int(height // lead), not allow_empty)
     lines: list[Line] = []
+    ws_undo = ws
     while ws and len(lines) < max_lines:
+        # FUTURE: it'd be more optimal to only 'tee' on the last line
+        ws, ws_undo = tee(ws)
         ws, ln = take_line(ws, width)
         lines.append(ln)
-    return ws, lines
+    return _FilledBox(ws, lines, ws_undo)
 
 
 def take_line(
@@ -37,7 +93,7 @@ def take_line(
         content.append(word)
     else:
         # i.e. this is the last line of the paragraph
-        # TODO: catch no content case
+        # TODO: catch case where there is no content
         return (None, Line(tuple(content), width - space, 0))
 
     last_word, dangling = word.hyphenate(space)

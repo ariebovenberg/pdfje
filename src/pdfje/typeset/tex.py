@@ -98,7 +98,7 @@ def optimum_fit(
             continue
         if g.is_empty():
             # Breaking here saves us time needlessly looping over the boxes
-            # since we know there are no feasible breaks.
+            # once we know there are no feasible breaks
             break
 
         for node in list(g.nodes()):
@@ -170,9 +170,9 @@ def _optimal_end(
     ratio: Callable[
         [CumulativeWidth, CumulativeWidth, CumulativeWidth, Box, float], Ratio
     ],
-) -> _SinkNode:
+) -> _EndNode:
     options = (
-        _SinkNode(
+        _EndNode(
             pos,
             r,
             _main_demerit(0, r)
@@ -199,7 +199,7 @@ def _fitness(r: Ratio) -> Fitness:
     return 0 if r < -0.5 else 1 if r <= 0.5 else 2 if r <= 1 else 3
 
 
-_demerits: Callable[[_SinkNode], float] = attrgetter("demerits")
+_demerits: Callable[[_EndNode], float] = attrgetter("demerits")
 
 
 def ratio_justified(
@@ -249,14 +249,14 @@ def _main_demerit(penalty: float, r: Ratio) -> float:
 
 @add_slots
 @dataclass(frozen=True)
-class _SinkNode:
+class _EndNode:
     pos: Pos
     ratio: Ratio
     demerits: float
     prev: _BreakNode = field(repr=False)
 
     def unroll(self) -> Sequence[Break]:
-        node: _BreakNode | _SinkNode = self
+        node: _BreakNode | _EndNode = self
         result: list[Break] = []
         while node is not _ROOT:
             result.append(
