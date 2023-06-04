@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .builtins import courier, helvetica, symbol, times_roman, zapf_dingbats
 from .common import BuiltinTypeface, TrueType
 
