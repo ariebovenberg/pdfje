@@ -63,6 +63,7 @@ exclude = '''
 [tool.isort]
 line_length = 79
 profile = 'black'
+add_imports = ['from __future__ import annotations']
 
 [tool.slotscheck]
 strict-imports = true

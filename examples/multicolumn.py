@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pdfje import AutoPage, Column, Document, Page
 from pdfje.fonts import times_roman
 from pdfje.layout import Paragraph

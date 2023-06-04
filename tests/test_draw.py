@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pdfje.common import XY
 from pdfje.draw import Polyline, Rect
 

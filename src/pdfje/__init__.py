@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .common import RGB, XY, black, blue, cyan, lime, magenta, red, yellow
 from .document import Document
 from .layout.pages import AutoPage

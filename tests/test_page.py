@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pdfje import XY, Column, Page
 from pdfje.draw import Circle
 from pdfje.units import A5

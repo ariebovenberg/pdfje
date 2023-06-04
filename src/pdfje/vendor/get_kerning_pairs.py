@@ -2,6 +2,8 @@
 # github.com/adobe-type-tools/kern-dump/blob/main/getKerningPairsFromOTF.py
 # under its MIT license:
 
+from __future__ import annotations
+
 # Copyright (c) 2013-2016 Adobe Systems Incorporated. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,7 +22,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-
 # The following changes have been made to the original file:
 # - Removed the main function and the command line argument parsing
 # - Removed the print statements

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from functools import partial
 from itertools import chain, starmap
 from typing import TYPE_CHECKING, Callable, Iterable, Union
