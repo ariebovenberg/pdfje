@@ -88,18 +88,21 @@ _CHAPTER_NUMERALS = set("I II III IV V VI VII VIII IX X".split())
 def chapters() -> Iterable[Sequence[Paragraph | Rule]]:
     "Book content grouped by chapters"
     buffer: list[Paragraph | Rule] = [Paragraph("Chapter I\n", HEADING)]
+    indent = 0
     for p in PARAGRAPHS:
         if p.strip() in _CHAPTER_NUMERALS:
             yield buffer
             buffer = [Paragraph(f"Chapter {p.strip()}\n", HEADING)]
+            indent = 0
         elif p.startswith("------"):
             buffer.append(Rule("#aaaaaa", (20, 10, 10)))
         else:
             buffer.append(
                 Paragraph(
-                    p, Style(line_spacing=1.2), align="justify", indent=20
+                    p, Style(line_spacing=1.2), align="justify", indent=indent
                 )
             )
+            indent = 15
     yield buffer
 
 

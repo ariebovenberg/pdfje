@@ -11,11 +11,12 @@ from pdfje import XY, AutoPage, Column, Document, Page, blue, lime, red
 from pdfje.draw import Circle, Ellipse, Line, Polyline, Rect, Text
 from pdfje.fonts import TrueType, courier, helvetica, times_roman
 from pdfje.layout import Block, Paragraph, Rule
+from pdfje.layout.paragraph import LinebreakParams
 from pdfje.page import Rotation
 from pdfje.style import Span, Style, bold, italic, regular
 from pdfje.units import A4, A5, A6, inch, mm
 
-from .common import LOREM_IPSUM, ZEN_OF_PYTHON
+from .common import LOREM_IPSUM, LOREM_SHORT, ZEN_OF_PYTHON
 
 try:
     import fontTools  # noqa
@@ -27,6 +28,18 @@ else:
 HERE = Path(__file__).parent
 ZALGO = "t̶͈̓̕h̴̩̖͋̈́e̷̛̹ ̴̠͎̋̀p̷̦̔o̴̘͔̓n̸̞̙̐̕y̷̙̠̍ ̶̱̞̃h̶͈̮̅̆ë̸͍̟́̓ ̷̳̜̂c̵̢̡͋o̸̰̫͗̽m̷̨̿̕e̶̛̗̲͆s̸̨̭̐"  # noqa
 ALL_ANGLES: list[Rotation] = [0, 90, 180, 270]
+TWO_COLUMNS = [
+    Column(
+        XY(inch(1), inch(1)),
+        (A4.x / 2) - inch(1.25),
+        A4.y - inch(2),
+    ),
+    Column(
+        XY(A4.x / 2 + inch(0.25), inch(1)),
+        (A4.x / 2) - inch(1.25),
+        A4.y - inch(2),
+    ),
+]
 
 
 class TestWrite:
@@ -123,18 +136,6 @@ class TestAutopage:
         Document([AutoPage(para)]).write(outfile)
 
     def test_multiple_columns(self, outfile):
-        two_columns = [
-            Column(
-                XY(inch(1), inch(1)),
-                (A4.x / 2) - inch(1.25),
-                A4.y - inch(2),
-            ),
-            Column(
-                XY(A4.x / 2 + inch(0.25), inch(1)),
-                (A4.x / 2) - inch(1.25),
-                A4.y - inch(2),
-            ),
-        ]
         pages = cycle(
             [
                 Page(
@@ -145,7 +146,7 @@ class TestAutopage:
                             italic,
                         )
                     ],
-                    columns=two_columns,
+                    columns=TWO_COLUMNS,
                 ),
                 Page(
                     [
@@ -167,18 +168,21 @@ class TestAutopage:
 
     def test_text(self, outfile):
         text: list[Block | str] = [
-            LOREM_IPSUM,
+            Paragraph("defaults:", bold),
+            Paragraph(LOREM_SHORT),
+            Paragraph("justified, times, red, italic:", bold),
             Paragraph(
-                LOREM_IPSUM,
+                LOREM_SHORT,
                 "#770000" | times_roman | italic,
                 indent=20,
                 align="justify",
             ),
             Rule(),
+            Paragraph("centered, green, italic:", bold),
             Paragraph(
-                "\n".join([ZEN_OF_PYTHON] * 4) + "\n",
+                "\n".join([ZEN_OF_PYTHON] * 3) + "\n",
                 Style(
-                    size=17,
+                    size=11,
                     line_spacing=1.1,
                     color="#117700",
                     font=helvetica,
@@ -189,6 +193,7 @@ class TestAutopage:
                 align="center",
             ),
             *[Rule()] * 6,
+            Paragraph("tiny, mixed, right-aligned:", bold),
             Paragraph(
                 list(
                     islice(
@@ -213,13 +218,13 @@ class TestAutopage:
         ]
         Document(
             [
-                AutoPage(text),
+                AutoPage(text, template=Page(columns=TWO_COLUMNS)),
                 AutoPage(
-                    [
-                        Paragraph(
-                            LOREM_IPSUM, Style(line_spacing=3, font=courier)
-                        )
-                    ]
+                    Paragraph(
+                        LOREM_IPSUM,
+                        Style(line_spacing=3, font=courier),
+                        optimal=False,
+                    )
                 ),
             ]
         ).write(outfile)
@@ -234,10 +239,12 @@ class TestAutopage:
                             style=Style(
                                 font=times_roman, size=1000, line_spacing=0.9
                             ),
+                            optimal=False,
                         ),
                         Paragraph(
                             LOREM_IPSUM[200:],
                             style=Style(size=300, line_spacing=0.9),
+                            optimal=False,
                         ),
                     ]
                 )
@@ -248,10 +255,9 @@ class TestAutopage:
 def test_draw(outfile):
     Document(
         [
-            Page([Text((250, 400), "First!", Style(size=50))]),
-            Page([Text((50, 720), ZEN_OF_PYTHON)]),
             Page(
                 [
+                    Text((300, 600), ZEN_OF_PYTHON, Style(size=5)),
                     Polyline(
                         [(50, 650), (50, 600), (100, 600)],
                         close=True,
@@ -271,10 +277,15 @@ def test_draw(outfile):
                         "Big red text, and LINES!",
                         Style(size=40, color=red),
                     ),
+                    Text(
+                        (50, 770),
+                        "",  # no text -- an important edge case
+                        Style(size=40, color=red),
+                    ),
                     Circle((A4.x / 2, 400), 5, stroke=red),
                     Text(
                         (A4.x / 2, 400),
-                        "Centered text\nwith multiple lines that are"
+                        "Centered text\n\nwith multiple lines that are"
                         "\nalso centered...",
                         Style(size=20, color=blue),
                         align="center",
@@ -353,7 +364,12 @@ def test_fonts(outfile, dejavu: TrueType, crimson: TrueType):
             ),
             AutoPage(
                 [
-                    Paragraph(LOREM_IPSUM, crimson),
+                    Paragraph(
+                        LOREM_IPSUM,
+                        crimson,
+                        align="justify",
+                        optimal=LinebreakParams(tolerance=1.5),
+                    ),
                     Paragraph(
                         LOREM_IPSUM,
                         Style(

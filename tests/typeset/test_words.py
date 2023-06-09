@@ -8,59 +8,65 @@ import pytest
 
 from pdfje.atoms import LiteralStr, Real
 from pdfje.common import Char
-from pdfje.typeset.common import NO_OP, Chain, Passage, Slug, State
+from pdfje.fonts.common import TEXTSPACE_TO_GLYPHSPACE
+from pdfje.typeset.state import NO_OP, State
 from pdfje.typeset.words import (
-    MixedBox,
+    MixedSlug,
+    Slug,
     TrailingSpace,
     WithCmd,
     Word,
-    parse,
+    into_syllables,
     render_kerned,
 )
 from pdfje.vendor.hyphenate import hyphenate_word
 
-from ..common import (
-    BIG,
-    BLUE,
-    FONT,
-    GREEN,
-    HUGE,
-    NORMAL,
-    RED,
-    SMALL,
-    approx,
-    eq_iter,
-    mkstate,
-    multi,
-)
+from ..common import BLUE, FONT, HUGE, RED, approx, mkstate
 
 STATE = mkstate(FONT, 10, hyphens=hyphenate_word)
 
 
+class TestIntoSyllables:
+    def test_simple(self):
+        assert list(into_syllables("complex", hyphenate_word)) == [
+            "com",
+            "plex",
+        ]
+
+    def test_ignores_punctuation(self):
+        assert list(
+            into_syllables("West.”...westerwest““you.", hyphenate_word)
+        ) == [
+            "West.”...west",
+            "er",
+            "west““you.",
+        ]
+
+
 class TestHyphenateWord:
     def test_empty(self):
-        word = Word((), TrailingSpace(20, 0), STATE)
+        word = Word((), TrailingSpace(20, 0, STATE.size), STATE)
         assert word.hyphenate(10) == (None, word)
 
     def test_word_with_one_syllable(self):
-        word = Word.simple("Newt ", STATE, " ")
-        assert word.hyphenate(word.width() - 0.01) == (
+        word = Word.new("Newt ", STATE, " ")
+        assert word.hyphenate(word.width - 0.01) == (
             None,
             word.without_init_kern(),
         )
 
     def test_word_with_two_syllables(self):
-        word = Word.simple("complex", STATE, " ")
-        a, b = word.hyphenate(word.width() - 0.01)
+        word = Word.new("complex", STATE, " ")
+        a, b = word.hyphenate(word.width - 0.01)
         assert a == Word((ga("com-", STATE, " "),), None, STATE)
         assert b == Word((ga("plex", STATE, None),), None, STATE)
 
     def test_split_too_short_for_first_syllable(self):
-        word = Word.simple("complicated", STATE, " ")
+        word = Word.new("complicated", STATE, " ")
         assert word.hyphenate(60) == (None, word.without_init_kern())
 
     def test_split_after_first_syllable(self):
-        word = Word.simple("complicated ", STATE, " ")
+        word = Word.new("complicated ", STATE, " ")
         a, b = word.hyphenate(79.99)
         assert a == Word((ga("com-", STATE, " "),), None, STATE)
         assert b == Word(
@@ -69,25 +75,25 @@ class TestHyphenateWord:
                 ga("cat", STATE, "i"),
                 ga("ed", STATE, "t"),
             ),
-            TrailingSpace(20, 0),
+            TrailingSpace(20, 0, STATE.size),
             STATE,
         )
 
     def test_split_in_middle(self):
-        word = Word.simple("complicated ", STATE, " ")
+        word = Word.new("complicated ", STATE, " ")
         a, b = word.hyphenate(150)
         assert a == Word(
             (ga("com", STATE, " "), ga("pli-", STATE, "m")), None, STATE
         )
         assert b == Word(
             (ga("cat", STATE, None), ga("ed", STATE, "t")),
-            TrailingSpace(20, 0),
+            TrailingSpace(20, 0, STATE.size),
             STATE,
         )
 
     def test_split_before_last(self):
-        word = Word.simple("complicated ", STATE, " ")
-        a, b = word.hyphenate(word.width() - 30)
+        word = Word.new("complicated ", STATE, " ")
+        a, b = word.hyphenate(word.width - 30)
         assert a == Word(
             (
                 ga("com", STATE, " "),
@@ -97,287 +103,206 @@ class TestHyphenateWord:
             None,
             STATE,
         )
-        assert b == Word((ga("ed", STATE, None),), TrailingSpace(20, 0), STATE)
+        assert b == Word(
+            (ga("ed", STATE, None),), TrailingSpace(20, 0, STATE.size), STATE
+        )
 
     def test_hyphenation_not_needed(self):
-        word = Word.simple("complicated ", STATE, " ")
+        word = Word.new("complicated ", STATE, " ")
         with pytest.raises(RuntimeError, match="necessary"):
             word.hyphenate(10_000)
 
 
-class TestParse:
-    def test_empty(self):
-        cmd, words = parse([], STATE)
-        assert cmd is NO_OP
-        assert list(words) == []
-
-    def test_only_commands(self):
-        cmd, words = parse([Passage(BLUE, ""), Passage(BIG, "")], STATE)
-        assert cmd == Chain(eq_iter([BLUE, BIG]))
-        assert list(words) == []
-
-    def test_one_word(self):
-        cmd, words = parse([Passage(BLUE, "complex ")], STATE)
-        assert cmd == BLUE
-        assert list(words) == [
-            Word(
-                (
-                    ga("com", BLUE.apply(STATE), None),
-                    ga("plex", BLUE.apply(STATE), "m"),
-                ),
-                TrailingSpace(20, 0),
-                BLUE.apply(STATE),
+class TestSlug:
+    def test_build(self):
+        s = Slug.new("Complex", STATE, " ")
+        assert s.kern == [(0, -15), (3, -10), (6, -20)]
+        assert s.width == approx(
+            (
+                STATE.font.width("Complex")
+                + sum(x for _, x in s.kern) / TEXTSPACE_TO_GLYPHSPACE
             )
-        ]
-
-    def test_one_space(self):
-        cmd, words = parse([Passage(BLUE, " ")], STATE)
-        assert cmd == BLUE
-        assert list(words) == [
-            Word((), TrailingSpace(20, 0), BLUE.apply(STATE))
-        ]
-
-    def test_two_compound_words(self):
-        cmd, words = parse(
-            [
-                Passage(BLUE, "bet"),
-                Passage(BIG, "ter th"),
-                Passage(GREEN, "an "),
-                Passage(HUGE, ""),
-            ],
-            STATE,
+            * STATE.size
         )
-        assert cmd == BLUE
-        assert list(words) == [
-            Word(
-                (
-                    MixedBox(
-                        (
-                            (ga("bet", BLUE.apply(STATE), None), BIG),
-                            (
-                                ga("ter", multi(BIG, BLUE).apply(STATE), "b"),
-                                NO_OP,
-                            ),
-                        ),
-                        multi(BLUE, BIG).apply(STATE),
-                    ),
-                ),
-                TrailingSpace(30, 0),
-                multi(BLUE, BIG).apply(STATE),
-            ),
-            WithCmd(
-                Word(
-                    (
-                        MixedBox(
-                            (
-                                (
-                                    ga(
-                                        "th",
-                                        multi(BLUE, BIG).apply(STATE),
-                                        " ",
-                                    ),
-                                    GREEN,
-                                ),
-                                (
-                                    ga(
-                                        "an",
-                                        multi(GREEN, BIG).apply(STATE),
-                                        "h",
-                                    ),
-                                    NO_OP,
-                                ),
-                            ),
-                            multi(GREEN, BIG).apply(STATE),
-                        ),
-                    ),
-                    TrailingSpace(30, 0),
-                    multi(GREEN, BIG).apply(STATE),
-                ),
-                HUGE,
-            ),
-        ]
 
-    def test_one_word_then_command(self):
-        cmd, words = parse(
-            [Passage(BLUE, "complex "), Passage(RED, "")], STATE
+    def test_basic_properties(self):
+        s = Slug.new("Complex", STATE, " ")
+        assert s.pre_state() == STATE
+        assert s.last() == "x"
+        assert s.pruned_width() == s.width
+        assert s.pruned() is s
+        assert s.boxes == (s,)
+        assert s.extend_tail(8) is s
+        assert s.stretch_tail(1.2) is s
+        assert s.hyphenate(10) == (None, s)
+        assert s.minimal_box() == (s, None)
+        assert s.prunable_space() == 0
+        assert s.tail is None
+        assert s.kern == [(0, -15), (3, -10), (6, -20)]
+
+    def test_with_hyphen(self):
+        s = Slug.new("Complex", STATE, " ")
+        assert s.with_hyphen() == Slug.new("Complex-", STATE, " ")
+
+    def test_init_kern(self):
+        s = Slug.new("Complex", STATE, " ")
+        assert s.has_init_kern()
+        assert s.without_init_kern() == Slug.new("Complex", STATE, None)
+
+    def test_indent(self):
+        s = Slug.new("Complex", STATE, None)
+        assert s.indent(0) == s
+        indented = s.indent(10)
+        assert indented.kern[0] == (
+            0,
+            10 * TEXTSPACE_TO_GLYPHSPACE / STATE.size,
         )
-        assert cmd == BLUE
-        assert list(words) == [
-            WithCmd(
-                Word(
-                    (
-                        ga("com", BLUE.apply(STATE), None),
-                        ga("plex", BLUE.apply(STATE), "m"),
-                    ),
-                    TrailingSpace(20, 0),
-                    BLUE.apply(STATE),
-                ),
-                RED,
-            )
-        ]
 
-    def test_separated_words(self):
-        cmd, words = parse(
-            [Passage(BLUE, "complicated. Flat is  better ")], STATE
+
+class TestMixedSlug:
+    def test_basic_properties(self):
+        s = MixedSlug(
+            (
+                (Slug.new("Fl", BLUE.apply(STATE), " "), RED),
+                (Slug.new("at", RED.apply(STATE), "t"), NO_OP),
+            ),
+            RED.apply(STATE),
         )
-        assert cmd == BLUE
-        assert list(words) == [
-            Word(
-                (
-                    ga("com", BLUE.apply(STATE), None),
-                    ga("pli", BLUE.apply(STATE), "m"),
-                    ga("cat", BLUE.apply(STATE), "i"),
-                    ga("ed.", BLUE.apply(STATE), "t"),
-                ),
-                TrailingSpace(approx(19.85), -15),
-                BLUE.apply(STATE),
-            ),
-            Word(
-                (ga("Flat", BLUE.apply(STATE), " "),),
-                TrailingSpace(20, 0),
-                BLUE.apply(STATE),
-            ),
-            Word(
-                (ga("is ", BLUE.apply(STATE), " "),),
-                TrailingSpace(20, 0),
-                BLUE.apply(STATE),
-            ),
-            Word(
-                (
-                    ga("bet", BLUE.apply(STATE), " "),
-                    ga("ter", BLUE.apply(STATE), "t"),
-                ),
-                TrailingSpace(20, 0),
-                BLUE.apply(STATE),
-            ),
-        ]
+        assert s.pre_state() == BLUE.apply(STATE)
+        assert s.last() == "t"
+        assert s.pruned_width() == s.width
+        assert s.pruned() is s
+        assert s.boxes == (s,)
+        assert s.extend_tail(8) is s
+        assert s.stretch_tail(1.2) is s
+        assert s.hyphenate(10) == (None, s)
+        assert s.minimal_box() == (s, None)
+        assert s.prunable_space() == 0
+        assert s.tail is None
 
-    def test_last_word_has_no_break(self):
-        cmd, words = parse([Passage(BLUE, "complicated.  Flat")], STATE)
-        assert cmd == BLUE
-        assert list(words) == [
-            Word(
-                (
-                    ga("com", BLUE.apply(STATE), None),
-                    ga("pli", BLUE.apply(STATE), "m"),
-                    ga("cat", BLUE.apply(STATE), "i"),
-                    ga("ed. ", BLUE.apply(STATE), "t"),
-                ),
-                TrailingSpace(20, 0),
-                BLUE.apply(STATE),
+    def test_init_kern(self):
+        s = MixedSlug(
+            (
+                (Slug.new("Com", BLUE.apply(STATE), " "), RED),
+                (Slug.new("plex", RED.apply(STATE), "m"), NO_OP),
             ),
-            Word(
-                (ga("Flat", BLUE.apply(STATE), " "),), None, BLUE.apply(STATE)
-            ),
-        ]
-
-    def test_last_word_has_segments_but_no_break(self):
-        cmd, words = parse(
-            [Passage(BLUE, "complicated.  Fl"), Passage(RED, "at")], STATE
+            RED.apply(STATE),
         )
-        assert cmd == BLUE
-        assert list(words) == [
-            Word(
-                (
-                    ga("com", BLUE.apply(STATE), None),
-                    ga("pli", BLUE.apply(STATE), "m"),
-                    ga("cat", BLUE.apply(STATE), "i"),
-                    ga("ed. ", BLUE.apply(STATE), "t"),
-                ),
-                TrailingSpace(20, 0),
-                BLUE.apply(STATE),
+        assert s.has_init_kern()
+        assert s.without_init_kern() == MixedSlug(
+            (
+                (Slug.new("Com", BLUE.apply(STATE), None), RED),
+                (Slug.new("plex", RED.apply(STATE), "m"), NO_OP),
             ),
-            Word(
-                (
-                    MixedBox(
-                        (
-                            (ga("Fl", BLUE.apply(STATE), " "), RED),
-                            (ga("at", RED.apply(STATE), "t"), NO_OP),
-                        ),
-                        RED.apply(STATE),
-                    ),
-                ),
-                None,
-                RED.apply(STATE),
-            ),
-        ]
-
-    def test_final_passage_is_just_a_space(self):
-        cmd, words = parse(
-            [Passage(BLUE, "complicated. "), Passage(HUGE, " ")], STATE
+            RED.apply(STATE),
         )
-        assert cmd == BLUE
-        assert list(words) == [
-            WithCmd(
-                Word(
-                    (
-                        ga("com", BLUE.apply(STATE), None),
-                        ga("pli", BLUE.apply(STATE), "m"),
-                        ga("cat", BLUE.apply(STATE), "i"),
-                        ga("ed.", BLUE.apply(STATE), "t"),
-                    ),
-                    TrailingSpace(approx(19.85), -15),
-                    BLUE.apply(STATE),
-                ),
-                HUGE,
-            ),
-            Word((), TrailingSpace(40, 0), multi(HUGE, BLUE).apply(STATE)),
-        ]
 
-    def test_words_traversing_passages(self):
-        cmd, words = parse(
-            [
-                Passage(BLUE, "comp"),
-                Passage(HUGE, "li"),
-                Passage(RED, ""),
-                Passage(GREEN, "ca"),
-                Passage(BLUE, ""),
-                Passage(BIG, "t"),
-                Passage(SMALL, "ed."),
-                Passage(NORMAL, " Flat "),
-            ],
-            STATE,
+    def test_indent(self):
+        s = MixedSlug(
+            (
+                (Slug.new("Com", BLUE.apply(STATE), None), RED),
+                (Slug.new("plex", RED.apply(STATE), "m"), NO_OP),
+            ),
+            RED.apply(STATE),
         )
-        assert cmd == BLUE
-        assert list(words) == [
-            Word(
-                (
-                    MixedBox(
-                        (
-                            (ga("comp", BLUE.apply(STATE), None), HUGE),
-                            (
-                                ga("li", multi(HUGE, BLUE).apply(STATE), "m"),
-                                GREEN,
-                            ),
-                            (
-                                ga("ca", multi(GREEN, HUGE).apply(STATE), "i"),
-                                Chain(eq_iter([BLUE, BIG])),
-                            ),
-                            (
-                                ga("t", multi(BIG, BLUE).apply(STATE), None),
-                                SMALL,
-                            ),
-                            (
-                                ga(
-                                    "ed.",
-                                    multi(SMALL, BLUE).apply(STATE),
-                                    None,
-                                ),
-                                NORMAL,
-                            ),
-                        ),
-                        BLUE.apply(STATE),
-                    ),
-                ),
-                TrailingSpace(approx(20), 0),
-                BLUE.apply(STATE),
+        assert s.indent(0) == s
+        indented = s.indent(13)
+        assert indented.segments[0][0].kern[0] == (
+            0,
+            13 * TEXTSPACE_TO_GLYPHSPACE / STATE.size,
+        )
+
+    def test_with_hyphen(self):
+        s = MixedSlug(
+            (
+                (Slug.new("Com", BLUE.apply(STATE), None), RED),
+                (Slug.new("plex", RED.apply(STATE), "m"), NO_OP),
             ),
-            Word(
-                (ga("Flat", BLUE.apply(STATE), " "),),
-                TrailingSpace(20, 0),
-                BLUE.apply(STATE),
+            RED.apply(STATE),
+        )
+        assert s.with_hyphen() == MixedSlug(
+            (
+                (Slug.new("Com", BLUE.apply(STATE), None), RED),
+                (Slug.new("plex", RED.apply(STATE), "m"), NO_OP),
+                (Slug.new("-", RED.apply(STATE), "x"), NO_OP),
             ),
-        ]
+            RED.apply(STATE),
+        )
+
+
+class TestWord:
+    def test_basic_properties(self):
+        word = Word.new("complex. ", STATE, " ")
+        assert word.tail is not None
+        assert word.pre_state() == STATE
+        assert word.last() == " "
+        assert word.pruned_width() == approx(
+            Word.new("complex.", STATE, " ").width
+        )
+        assert word.pruned().width == approx(word.pruned_width())
+        assert len(word.boxes) == 2
+        assert word.extend_tail(8).width == approx(word.width + 8)
+        assert word.stretch_tail(1.2).width == approx(
+            word.width + word.tail.width_excl_kern * 1.2
+        )
+        assert word.minimal_box() == word.hyphenate(100)
+        assert word.prunable_space() == word.tail.width()
+        assert word.tail is not None
+
+    def test_init_kern(self):
+        word = Word.new("complex. ", STATE, " ")
+        assert word.has_init_kern()
+        assert word.without_init_kern() == Word.new("complex. ", STATE, None)
+        word2 = Word.new(" ", STATE, "w")
+        assert word2.has_init_kern()
+        assert word2.without_init_kern() == Word.new(" ", STATE, None)
+
+    def test_indent(self):
+        word = Word.new("complex. ", STATE, None)
+        assert word.indent(0) == word
+        indented = word.indent(13)
+        assert isinstance(indented.boxes[0], Slug)
+        assert indented.boxes[0].kern[0] == (
+            0,
+            13 * TEXTSPACE_TO_GLYPHSPACE / STATE.size,
+        )
+        empty = Word.new(" ", STATE, None)
+        indented_empty = empty.indent(13)
+        assert indented_empty.tail is not None
+        assert indented_empty.tail.kern == (
+            13 * TEXTSPACE_TO_GLYPHSPACE / STATE.size
+        )
+
+
+def test_with_cmd():
+    w = WithCmd(
+        Word.new("complex. ", STATE, " "),
+        RED,
+    )
+    assert w.pre_state() == STATE
+    assert w.state == RED.apply(STATE)
+    assert w.last() == " "
+    assert w.pruned_width() == approx(Word.new("complex.", STATE, " ").width)
+    assert w.pruned().width == approx(w.pruned_width())
+    assert len(w.boxes) == 2
+    assert w.extend_tail(8).width == approx(w.width + 8)
+    assert w.tail is not None
+    assert w.stretch_tail(1.2).width == approx(
+        w.width + w.tail.width_excl_kern * 1.2
+    )
+    assert w.minimal_box() == w.hyphenate(100)
+    assert w.prunable_space() == w.tail.width()
+    assert w.tail is not None
+    assert w.has_init_kern()
+    assert w.without_init_kern() == WithCmd(
+        Word.new("complex. ", STATE, None),
+        RED,
+    )
+    assert w.indent(0) == w
+    assert w.without_init_kern().indent(14) == WithCmd(
+        Word.new("complex. ", STATE, None).indent(14),
+        RED,
+    )
 
 
 T = TypeVar("T")
@@ -395,7 +320,7 @@ def consume_gen(g: Generator[T, None, U]) -> tuple[list[T], U]:
 
 class TestEncodeIntoLine:
     def test_word(self):
-        word = Word.simple("complex. ", STATE, " ")
+        word = Word.new("complex. ", STATE, " ")
         gen = word.encode_into_line([Real(15), LiteralStr(b"better than")])
         content, rest = consume_gen(gen)
         assert content == []
@@ -415,7 +340,7 @@ class TestEncodeIntoLine:
     def test_mixed_word(self):
         word = Word(
             (
-                MixedBox(
+                MixedSlug(
                     (
                         (ga("Fl", BLUE.apply(STATE), " "), RED),
                         (ga("at", RED.apply(STATE), "t"), NO_OP),
@@ -427,7 +352,6 @@ class TestEncodeIntoLine:
             RED.apply(STATE),
         )
         gen = word.encode_into_line([Real(5), LiteralStr(b"complicated. ")])
-        # TODO: Atoms themselves streamable?
         content, rest = consume_gen(gen)
         assert list(rest) == []
         assert content == [
@@ -443,7 +367,7 @@ class TestEncodeIntoLine:
         ]
 
     def test_word_with_cmd(self):
-        word = WithCmd(Word.simple("complex. ", STATE, " "), HUGE)
+        word = WithCmd(Word.new("complex. ", STATE, " "), HUGE)
         gen = word.encode_into_line([Real(15), LiteralStr(b"better than ")])
         content, rest = consume_gen(gen)
         assert list(rest) == []
@@ -470,7 +394,7 @@ def g(
     s: str, st: State, prev: Char | None = None, approx_: bool = False
 ) -> Slug:
     """Helper to create a kerned string"""
-    string = Slug.nonempty(s, st, prev)
+    string = Slug.new(s, st, prev)
     assert isinstance(string, Slug)
     return replace(string, width=approx(string.width)) if approx_ else string
 

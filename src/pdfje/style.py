@@ -17,7 +17,13 @@ from .common import RGB, HexColor, Pt, add_slots, setattr_frozen
 from .fonts.builtins import helvetica
 from .fonts.common import BuiltinTypeface, TrueType, Typeface
 from .resources import Resources
-from .typeset.common import (
+from .typeset.hyphens import (
+    Hyphenator,
+    HyphenatorLike,
+    default_hyphenator,
+    parse_hyphenator,
+)
+from .typeset.state import (
     Chain,
     Command,
     Passage,
@@ -26,12 +32,6 @@ from .typeset.common import (
     SetHyphens,
     SetLineSpacing,
     State,
-)
-from .typeset.hyphens import (
-    Hyphenator,
-    HyphenatorLike,
-    default_hyphenator,
-    parse_hyphenator,
 )
 
 __all__ = ["Style", "Span", "StyleLike"]

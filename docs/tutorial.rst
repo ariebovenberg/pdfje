@@ -1,7 +1,7 @@
 Tutorial
 ========
 
-This guide will walk you through the basics of using **pdf'je**.
+This guide will walk you through the basics of using **pdfje**.
 Each section will build on the previous one, so it is recommended to read
 the sections in order.
 
@@ -378,4 +378,35 @@ To customize hyphenation, pass a :class:`~pyphen.Pyphen` object to the
    - If you don't have ``pyphen`` installed, pdfje will use a simple
      hyphenation algorithm for english text.
 
-   - To disable hyphenation, pass ``hyphens=None`` to the :class:`~pdfje.Style` constructor.
+   - To disable hyphenation altogether,
+     pass ``hyphens=None`` to the :class:`~pdfje.Style` constructor.
+
+🧮 Optimal line breaks
+----------------------
+
+Breaking paragraphs into lines is `more complex than it seems <https://www.youtube.com/watch?v=kzdugwr4Fgk>`_.
+A naive approach often leads to uneven line lengths and excessive or awkward hypenation.
+Pdfje uses the `Knuth-Plass <https://en.wikipedia.org/wiki/Line_wrap_and_word_wrap#Knuth.E2.80.93Plass_algorithm>`_
+algorithm to find the optimal line breaks.
+This algorithm is used by most typesetting systems, including TeX and InDesign.
+Pdfje's implementation optimizes for:
+
+- Filling the lines as evenly as possible
+- Avoiding hyphenation in general, especially if the previous line is also hyphenated
+
+A disadvantage of the Knuth-Plass algorithm is that it is relatively slow.
+If you'd like to use a faster, but less optimal algorithm, you can pass
+``optimal=False`` to the :class:`~pdfje.layout.Paragraph` constructor.
+
+🛟 Avoiding orphaned lines
+--------------------------
+
+Orphaned or widowed lines are lines that are left dangling at the top or bottom of a page.
+They are considered bad typography, and should be avoided.
+
+There are many ways to avoid orphaned lines, but the most common one is to
+move a line to the next page if it avoids a line being left alone.
+pdfje supports this behavior by default.
+If you want to disable this behavior, pass ``avoid_orphans=False`` to the
+:class:`~pdfje.layout.Paragraph` constructor.
+This is useful in multi-column layouts, where you want to avoid uneven columns.

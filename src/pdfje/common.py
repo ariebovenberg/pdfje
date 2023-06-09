@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass, fields
-from itertools import chain, tee
+from itertools import chain, islice, tee
 from operator import itemgetter
 from typing import (
     TYPE_CHECKING,
@@ -41,6 +41,24 @@ NonEmptyIterator = Iterator[T]
 
 def prepend(i: T, it: Iterable[T]) -> Iterator[T]:
     return chain((i,), it)
+
+
+# From the itertools recipes
+def advance(it: Iterator[object], n: int) -> None:
+    "Advance the iterator n-steps ahead"
+    next(islice(it, n, n), None)
+
+
+# Abstract properties don't mix well with dataclass inheritance at runtime.
+# Deleting properties at runtime fixes the issue.
+# We still use the type checker to ensure subclasses have the right methods.
+def fix_abstract_properties(t: Tclass) -> Tclass:
+    for n in getattr(t, "__abstractmethods__", ()):
+        try:
+            delattr(t, n)
+        except AttributeError:
+            pass
+    return t
 
 
 @dataclass(frozen=True, repr=False)

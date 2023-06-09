@@ -1,8 +1,15 @@
 Changelog
 =========
 
-0.6.0 (2023-??-??)
+0.6.0 (2023-08-15)
 ------------------
+
+**Added**
+
+- 🧮 Paragraphs can be optimally typeset using the Knuth-Plass line
+  breaking algorithm. Use the ``optimal`` argument for this.
+- 🛟 Paragraphs support automatically avoiding orphaned lines with
+  ``avoid_orphans`` argument.
 
 **Breaking**
 

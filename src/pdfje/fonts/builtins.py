@@ -11052,7 +11052,7 @@ else:
         BuiltinFont(b"Courier-BoldOblique", b"f11", always(600), None),
     )
 
-    # TODO: actual widths
+    # FUTURE: actual widths
     symbol = BuiltinTypeface(
         BuiltinFont(b"Symbol", b"f12", always(1000), None),
         BuiltinFont(b"Symbol", b"f12", always(1000), None),

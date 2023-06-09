@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "pdfje"
-version = "0.5.0"
-description = "Tiny PDF writer"
+version = "0.6.0"
+description = "Write beautiful PDFs in declarative Python"
 authors = ["Arie Bovenberg <a.c.bovenberg@gmail.com>"]
 license = "MIT"
 classifiers = [
@@ -41,7 +41,7 @@ mypy = "^1.0.0"
 black = "^23.1"
 flake8 = "^6.0.0"
 isort = "^5.7.0"
-slotscheck = "^0.16.1"
+slotscheck = "^0.17.0"
 
 
 [tool.black]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from functools import partial
 from typing import Callable, Iterator, Sequence, Tuple, cast
 from unittest.mock import ANY
 
@@ -10,7 +11,7 @@ from pdfje import Document, Page
 from pdfje.draw import Rect, Text
 from pdfje.fonts import times_roman
 from pdfje.style import Style
-from pdfje.typeset.tex import (
+from pdfje.typeset.knuth_plass import (
     BIG,
     Box,
     Break,
@@ -21,6 +22,13 @@ from pdfje.typeset.tex import (
 )
 
 from ..common import approx
+
+fit = partial(
+    optimum_fit,
+    hyphen_penalty=100,
+    consecutive_hyphen_penalty=3000,
+    fit_diff_penalty=100,
+)
 
 
 def spaced_box(
@@ -104,13 +112,20 @@ class TestRatioRagged:
             ratio_ragged(
                 10, 3, 2, spaced_box(30, space=5, stretch=3, shrink=2), 15
             )
-            == -BIG
+            == -2
         )
 
 
 class TestOptimalBreaks:
     def test_empty(self):
-        assert optimum_fit([], lambda _: 100, 1) == []
+        assert list(fit([], lambda _: 100, 1)) == []
+
+    def test_one_box(self):
+        assert fit(
+            [spaced_box(10, space=5, stretch=0, shrink=0)],
+            lambda _: 100,
+            1,
+        ) == [Break(1, approx(0), ANY, 15)]
 
     def test_fits_in_one_line(self):
         boxes = [
@@ -118,9 +133,7 @@ class TestOptimalBreaks:
             spaced_box(45, space=5, stretch=10, shrink=5),
             spaced_box(90, space=0, stretch=20, shrink=10),
         ]
-        assert optimum_fit(boxes, lambda _: 100, 1) == [
-            Break(3, approx(0), ANY)
-        ]
+        assert fit(boxes, lambda _: 100, 1) == [Break(3, approx(0), ANY, 90)]
 
     def test_fits_in_one_line_even_if_way_too_short(self):
         boxes = [
@@ -128,8 +141,8 @@ class TestOptimalBreaks:
             spaced_box(45, space=5, stretch=10, shrink=5),
             spaced_box(90, space=0, stretch=20, shrink=10),
         ]
-        assert optimum_fit(boxes, lambda _: 1000, 1) == [
-            Break(3, approx(0.0), ANY)
+        assert fit(boxes, lambda _: 1000, 1) == [
+            Break(3, approx(0.0), ANY, 90)
         ]
 
     def test_fits_in_one_line_after_shrink(self):
@@ -138,8 +151,8 @@ class TestOptimalBreaks:
             spaced_box(45, space=5, stretch=10, shrink=6),
             spaced_box(90, space=0, stretch=20, shrink=12),
         ]
-        assert optimum_fit(boxes, lambda _: 89, 1) == [
-            Break(3, approx(-(90 - 89) / 12), ANY)
+        assert fit(boxes, lambda _: 89, 1) == [
+            Break(3, approx(-(90 - 89) / 12), ANY, 90)
         ]
 
     def test_no_breaks_within_tolerance(self):
@@ -152,7 +165,19 @@ class TestOptimalBreaks:
             spaced_box(250, space=5, stretch=20, shrink=12),
         ]
         with pytest.raises(NoFeasibleBreaks):
-            optimum_fit(boxes, lambda _: 130, 1)
+            fit(boxes, lambda _: 130, 1)
+
+    def test_no_feasible_breaks_on_last_box(self):
+        boxes = [
+            spaced_box(10, space=5, stretch=0, shrink=0),
+            spaced_box(90, space=5, stretch=5, shrink=3),
+            spaced_box(125, space=5, stretch=7, shrink=4),
+            spaced_box(150, space=5, stretch=10, shrink=6),
+            spaced_box(200, space=5, stretch=15, shrink=9),
+            spaced_box(350, space=5, stretch=20, shrink=12),
+        ]
+        with pytest.raises(NoFeasibleBreaks):
+            fit(boxes, lambda _: 130, 1)
 
     def test_nobreak_box(self):
         boxes = [
@@ -165,7 +190,7 @@ class TestOptimalBreaks:
             spaced_box(250, space=5, stretch=20, shrink=12),
         ]
         with pytest.raises(NoFeasibleBreaks):
-            optimum_fit(boxes, lambda _: 130, 1)
+            fit(boxes, lambda _: 130, 1)
 
     def test_one_obvious_optimum(self):
         boxes = [
@@ -187,10 +212,10 @@ class TestOptimalBreaks:
             spaced_box(250, space=10, stretch=30, shrink=18),
             spaced_box(295, space=0, stretch=40, shrink=26),
         ]
-        assert optimum_fit(boxes, {0: 100, 1: 102, 2: 110}.__getitem__, 1) == [
-            Break(3, approx((100 - 90) / 20), ANY),
-            Break(5, approx((102 - (180 + 12 - 90)) / (18 - 12)), ANY),
-            Break(7, approx((110 - (295 - 180)) / (26 - 18)), ANY),
+        assert fit(boxes, {0: 100, 1: 102, 2: 110}.__getitem__, 1) == [
+            Break(3, approx((100 - 90) / 20), ANY, 90),
+            Break(5, approx((102 - (180 + 12 - 90)) / (18 - 12)), ANY, 90),
+            Break(7, approx((110 - (295 - 180)) / (26 - 18)), ANY, 115),
         ]
 
     @pytest.mark.parametrize(
@@ -311,7 +336,7 @@ rite plaything.""",
         ],
     )
     def test_example_text(self, width, tol, expect):
-        breaks = optimum_fit(BOXES, lambda _: width, tol=tol)
+        breaks = fit(BOXES, lambda _: width, tol=tol)
         lines = _into_lines(breaks, WORDS)
         # printlines(lines)
         # visualize(f"example-wrap-{width}.pdf", lines, width, 12)
@@ -362,19 +387,23 @@ her favorite plaything.""",
         ],
     )
     def test_variable_line_width(self, width, tol, expect):
-        breaks = optimum_fit(BOXES, width, tol=tol)
+        breaks = fit(BOXES, width, tol=tol)
         lines = _into_lines(breaks, WORDS)
         assert "\n".join(ln for ln, _ in lines) == expect
 
     def test_width_narrower_than_largest_box(self):
         max_width = max(map(times_roman.regular.width, WORDS))
-        breaks = optimum_fit(BOXES, lambda _: max_width, tol=float("inf"))
+        breaks = fit(BOXES, lambda _: max_width, tol=float("inf"))
         lines = _into_lines(breaks, WORDS)
         assert 100 > len(lines) > 90
 
     def test_ragged(self):
-        breaks = optimum_fit(BOXES, lambda _: 25, tol=1, ragged=True)
-        lines = _into_lines(breaks, WORDS)
+        words, boxes = cast(
+            Tuple[Tuple[str, ...], Tuple[Box, ...]],
+            zip(*_into_boxes(EXAMPLE, times_roman.regular.width, ragged=True)),
+        )
+        breaks = fit(boxes, lambda _: 25, tol=4, ragged=True)
+        lines = _into_lines(breaks, words)
         # printlines(lines)
         # visualize("example-ragged-sqrt.pdf", lines, 25, 12)
         assert (
@@ -392,13 +421,22 @@ a golden ball, and threw it up on high and caught it, and this
 ball was her favorite plaything."""
         )
 
-    def test_very_narrow_width(self):
-        breaks = optimum_fit(BOXES, lambda _: 0.01, tol=float("inf"))
-        lines = _into_lines(breaks, WORDS)
+    # FUTURE: enable ragged test case. It currently fails.
+    #         Not a high prio bug, since this is a rare edge case in practice.
+    @pytest.mark.parametrize("ragged", [False])
+    def test_very_narrow_width(self, ragged):
+        words, boxes = cast(
+            Tuple[Tuple[str, ...], Tuple[Box, ...]],
+            zip(
+                *_into_boxes(EXAMPLE, times_roman.regular.width, ragged=ragged)
+            ),
+        )
+        breaks = fit(boxes, lambda _: 0.05, tol=float("inf"), ragged=ragged)
+        lines = _into_lines(breaks, words)
         # i.e. every box should get its own line
         # FUTURE: the last box somehow isn't hyphenated.
-        #         Low prio bug, since this is a pathological case.
-        assert len(lines) == len(BOXES) - 1
+        #         Low prio bug, since this is a rare edge case in practice.
+        assert len(lines) == len(boxes) - 1
 
 
 EXAMPLE = """\
@@ -473,11 +511,11 @@ def _into_lines(
 
 
 def _into_boxes(
-    s: str, width_of: Callable[[str], float]
+    s: str, width_of: Callable[[str], float], ragged: bool = False
 ) -> Iterator[tuple[str, Box]]:
     width = 0.0
     shrink = 0.0
-    stretch = 0.0
+    stretch = width_of(" ") * 3 if ragged else 0.0
     for word, hyphen, space in _boxes(s):
         width += width_of(word)
         if hyphen:
@@ -499,8 +537,9 @@ def _into_boxes(
                 word + space,
                 spaced_box(width, stretch, shrink, space=width_of(space)),
             )
-            shrink += width_of(space) * 0.35
-            stretch += width_of(space) * 0.5
+            if not ragged:
+                shrink += width_of(space) * 0.35
+                stretch += width_of(space) * 0.5
         else:
             yield (word, spaced_box(width, stretch, shrink, space=0))
 

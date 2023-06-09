@@ -8,7 +8,8 @@ from pdfje.fonts import helvetica, times_roman
 from pdfje.layout import Paragraph
 from pdfje.resources import Resources
 from pdfje.style import Span, Style
-from pdfje.typeset.common import (
+from pdfje.typeset.hyphens import default_hyphenator, never_hyphenate
+from pdfje.typeset.state import (
     NO_OP,
     Chain,
     Passage,
@@ -17,7 +18,6 @@ from pdfje.typeset.common import (
     SetHyphens,
     SetLineSpacing,
 )
-from pdfje.typeset.hyphens import default_hyphenator, never_hyphenate
 from tests.common import eq_iter
 
 

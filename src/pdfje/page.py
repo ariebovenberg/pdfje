@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import abc
 from dataclasses import dataclass
 from itertools import chain
 from operator import methodcaller
@@ -16,12 +17,22 @@ from .common import (
     flatten,
     setattr_frozen,
 )
-from .draw import Drawing
 from .resources import Resources
 from .style import StyleFull
 from .units import A4, Pt, inch
 
 Rotation = Literal[0, 90, 180, 270]
+
+
+class Drawing(abc.ABC):
+    """Base class for all drawing operations wich can be put on
+    a :class:`~pdfje.Page`."""
+
+    __slots__ = ()
+
+    @abc.abstractmethod
+    def render(self, r: Resources, s: StyleFull, /) -> Streamable:
+        ...
 
 
 @final
@@ -35,7 +46,7 @@ class Column:
     origin
         The bottom left corner of the column. Can be parsed from a 2-tuple.
     width
-        The width of the column.
+        The width of the column. Must be larger than 0.
     height
         The height of the column.
 
@@ -51,6 +62,7 @@ class Column:
         setattr_frozen(self, "origin", XY.parse(origin))
         setattr_frozen(self, "width", width)
         setattr_frozen(self, "height", height)
+        assert self.width > 0
 
 
 @add_slots

@@ -3,21 +3,10 @@ from __future__ import annotations
 import abc
 import re
 from dataclasses import dataclass, field, replace
-from itertools import chain
-from typing import (
-    Collection,
-    Generator,
-    Iterable,
-    Iterator,
-    NamedTuple,
-    Sequence,
-    TypeVar,
-)
+from typing import Collection, Iterable, Iterator, NamedTuple
 
-from ..atoms import LiteralStr, Real
 from ..common import (
     RGB,
-    Char,
     NonEmptyIterator,
     Pos,
     Pt,
@@ -25,15 +14,12 @@ from ..common import (
     add_slots,
     flatten,
     prepend,
-    second,
     setattr_frozen,
 )
-from ..fonts.common import TEXTSPACE_TO_GLYPHSPACE, Font, Kern
+from ..fonts.common import Font
 from .hyphens import Hyphenator
 
 _next_newline = re.compile(r"(?:\r\n|\n)").search
-
-T = TypeVar("T")
 
 
 class Command(Streamable):
@@ -193,116 +179,11 @@ class Passage(NamedTuple):
 def max_lead(s: Iterable[Passage], state: State) -> Pt:
     # FUTURE: we apply commands elsewhere, so doing it also here
     #         is perhaps a bit wasteful
-    lead = state.lead
-    for cmd, _ in s:
+    lead = 0.0
+    for cmd, txt in s:
         state = cmd.apply(state)
-        lead = max(lead, state.lead)
-    return lead
-
-
-def _encode_kerning(
-    txt: str, kerning: Sequence[Kern], f: Font
-) -> Iterable[LiteralStr | Real]:
-    encoded = f.encode(txt)
-    try:
-        index_prev, space = kerning[0]
-    except IndexError:
-        yield LiteralStr(encoded)
-        return
-
-    if index_prev == 0:  # i.e. the case where we kern before any text
-        yield Real(-space)
-        kerning = kerning[1:]
-
-    index_prev = index = 0
-    for index, space in kerning:
-        index *= f.encoding_width
-        yield LiteralStr(encoded[index_prev:index])
-        yield Real(-space)
-        index_prev = index
-
-    yield LiteralStr(encoded[index:])
-
-
-@add_slots
-@dataclass(frozen=True)
-class Slug:
-    "A fragment of text with its measured width and kerning information"
-    txt: str  # non-empty
-    kern: Sequence[Kern]
-    width: Pt
-    state: State
-
-    def last(self) -> Char:
-        return self.txt[-1]
-
-    def with_hyphen(self) -> Slug:
-        kern = self.state.font.charkern(self.last(), "-")
-        return Slug(
-            self.txt + "-",
-            [*self.kern, (len(self.txt), kern)] if kern else self.kern,
-            self.width
-            + (
-                (self.state.font.charwidth("-") - kern)
-                / TEXTSPACE_TO_GLYPHSPACE
-            )
-            * self.state.size,
-            self.state,
-        )
-
-    def has_init_kern(self) -> bool:
-        return bool(self.kern) and self.kern[0][0] == 0
-
-    @staticmethod
-    def nonempty(s: str, state: State, prev: Char | None) -> Slug:
-        font = state.font
-        kern = list(font.kern(s, prev))
-        return Slug(
-            s,
-            kern,
-            (font.width(s) + sum(map(second, kern)) / TEXTSPACE_TO_GLYPHSPACE)
-            * state.size,
-            state,
-        )
-
-    def without_init_kern(self) -> Slug:
-        kern = self.kern
-        if kern:
-            firstkern_pos, firstkern = kern[0]
-            if firstkern_pos == 0:
-                delta = (firstkern * self.state.size) / TEXTSPACE_TO_GLYPHSPACE
-                return Slug(
-                    self.txt,
-                    kern[1:],
-                    self.width - delta,
-                    self.state,
-                )
-        return self
-
-    def indent(self, amount: Pt) -> Slug:
-        # We only indent the first word of a line -- which never has Kerning
-        # on the first letter.
-        try:
-            assert self.kern[0][0] != 0
-        except IndexError:  # pragma: no cover
-            pass
-        return Slug(
-            self.txt,
-            [
-                (0, amount / self.state.size * TEXTSPACE_TO_GLYPHSPACE),
-                *self.kern,
-            ],
-            self.width + amount,
-            self.state,
-        )
-
-    def to_atoms(self) -> Iterable[LiteralStr | Real]:
-        return _encode_kerning(self.txt, self.kern, self.state.font)
-
-    def encode_into_line(
-        self, line: Iterable[LiteralStr | Real]
-    ) -> Generator[bytes, None, Iterable[LiteralStr | Real]]:
-        return chain(line, self.to_atoms())
-        # We need have one yield to turn this into a generator,
-        # even if it won't be reached.
-        yield  # type: ignore[unreachable]
+        # Only count leading if there is actually text with this value
+        if txt:
+            lead = max(lead, state.lead)
+    # If there's no text to go on, use the state's default
+    return lead or state.lead

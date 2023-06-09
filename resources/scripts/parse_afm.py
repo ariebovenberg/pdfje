@@ -14,7 +14,6 @@ def print_widths() -> None:
     widths = {
         ord(char.strip() or char): f[name][1] for name, char in NAMES.items()
     }
-    breakpoint()
     for k, v in sorted(widths.items()):
         print(f"{k}: {v},")
 

@@ -4,58 +4,293 @@
 # in the text.
 # Additionally, we try to keep performance reasonable by avoiding unnecessary
 # copying, focussing on the most common cases, and using iterators.
+# FUTURE: we could probablify this data model.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from itertools import chain
-from typing import Generator, Iterable, Iterator, Sequence, Union
+from typing import ClassVar, Generator, Iterable, Iterator, Sequence, TypeVar
 
-from pdfje.atoms import Array, LiteralStr, Real
+from pdfje.typeset.hyphens import Hyphenator
 
+from ..atoms import Array, LiteralStr, Real
 from ..common import (
     Char,
     NonEmptySequence,
-    Pos,
     Pt,
     Streamable,
     add_slots,
-    prepend,
+    fix_abstract_properties,
+    second,
 )
 from ..compat import pairwise
-from ..fonts.common import TEXTSPACE_TO_GLYPHSPACE, GlyphPt
-from .common import NO_OP, Chain, Command, Passage, Slug, State
+from ..fonts.common import TEXTSPACE_TO_GLYPHSPACE, Font, GlyphPt, Kern
+from .state import NO_OP, Command, State
 
-# FUTURE: expand to support the full unicode spec,
-# see https://unicode.org/reports/tr14/.
-_WORD_RE = re.compile(
-    r"(.*?( +|-|\N{ZERO WIDTH SPACE}|\N{EM DASH}|.(?=\N{EM DASH}\w)))"
-)
+_T = TypeVar("_T")
+_find_wordchars = re.compile(r"\w+").finditer
+
+
+@fix_abstract_properties
+class WordLike(ABC):
+    __slots__ = ()
+
+    # FUTURE: rename to syllables?
+    @property
+    @abstractmethod
+    def boxes(self) -> Sequence[Slug | MixedSlug]:
+        ...
+
+    # FUTURE: rename to end state?
+    @property
+    @abstractmethod
+    def state(self) -> State:
+        ...
+
+    @property
+    @abstractmethod
+    def width(self) -> Pt:
+        ...
+
+    @property
+    @abstractmethod
+    def tail(self) -> TrailingSpace | None:
+        ...
+
+    @abstractmethod
+    def pre_state(self) -> State:
+        ...
+
+    @abstractmethod
+    def last(self) -> Char:
+        ...
+
+    @abstractmethod
+    def has_init_kern(self) -> bool:
+        ...
+
+    @abstractmethod
+    def without_init_kern(self: _T) -> _T:
+        ...
+
+    @abstractmethod
+    def indent(self: _T, amount: Pt) -> _T:
+        ...
+
+    @abstractmethod
+    def pruned_width(self) -> Pt:
+        ...
+
+    @abstractmethod
+    def prunable_space(self) -> Pt:
+        ...
+
+    @abstractmethod
+    def pruned(self) -> WordLike:
+        ...
+
+    @abstractmethod
+    def extend_tail(self: _T, amount: Pt) -> _T:
+        ...
+
+    @abstractmethod
+    def stretch_tail(self: _T, ratio: float) -> _T:
+        ...
+
+    @abstractmethod
+    def hyphenate(self, w: Pt) -> tuple[WordLike | None, WordLike]:
+        ...
+
+    @abstractmethod
+    def minimal_box(self) -> tuple[WordLike, WordLike | None]:
+        ...
+
+    @abstractmethod
+    def encode_into_line(
+        self, line: Iterable[LiteralStr | Real]
+    ) -> Generator[bytes, None, Iterable[LiteralStr | Real]]:
+        ...
+
+    def with_cmd(self, cmd: Command) -> WordLike:
+        return self if cmd is NO_OP else WithCmd(self, cmd)
 
 
 @add_slots
 @dataclass(frozen=True)
-class MixedBox:
-    segments: NonEmptySequence[tuple[Slug, Command]]
-    state: State
+class Slug(WordLike):
+    "A fragment of text with its measured width and kerning information"
+    txt: str  # non-empty
+    kern: Sequence[Kern]
+    width: Pt  # including kerning
+    state: State = field(repr=False)
 
-    def with_hyphen(self) -> MixedBox:
-        return MixedBox(
+    tail: ClassVar[None] = None
+
+    def pre_state(self) -> State:
+        return self.state
+
+    def last(self) -> Char:
+        return self.txt[-1]
+
+    def with_hyphen(self) -> Slug:
+        kern = self.state.font.charkern(self.last(), "-")
+        return Slug(
+            self.txt + "-",
+            [*self.kern, (len(self.txt), kern)] if kern else self.kern,
+            self.width
+            + (
+                (self.state.font.charwidth("-") + kern)
+                / TEXTSPACE_TO_GLYPHSPACE
+            )
+            * self.state.size,
+            self.state,
+        )
+
+    def has_init_kern(self) -> bool:
+        return bool(self.kern) and self.kern[0][0] == 0
+
+    # FUTURE: rename?
+    @staticmethod
+    def new(s: str, state: State, prev: Char | None) -> Slug:
+        font = state.font
+        kern = list(font.kern(s, prev))
+        return Slug(
+            s,
+            kern,
+            (font.width(s) + sum(map(second, kern)) / TEXTSPACE_TO_GLYPHSPACE)
+            * state.size,
+            state,
+        )
+
+    def without_init_kern(self) -> Slug:
+        kern = self.kern
+        if kern:
+            firstkern_pos, firstkern = kern[0]
+            if firstkern_pos == 0:
+                delta = (firstkern * self.state.size) / TEXTSPACE_TO_GLYPHSPACE
+                return Slug(self.txt, kern[1:], self.width - delta, self.state)
+        return self
+
+    def indent(self, amount: Pt) -> Slug:
+        # Shortcut for common case
+        if not amount:
+            return self
+
+        # We only indent the first word of a line -- which never has Kerning
+        # on the first letter.
+        try:
+            assert self.kern[0][0] != 0
+        except IndexError:  # pragma: no cover
+            pass
+        return Slug(
+            self.txt,
+            [
+                (0, amount / self.state.size * TEXTSPACE_TO_GLYPHSPACE),
+                *self.kern,
+            ],
+            self.width + amount,
+            self.state,
+        )
+
+    def pruned_width(self) -> Pt:
+        return self.width
+
+    def pruned(self) -> Slug:
+        return self
+
+    @property
+    def boxes(self) -> Sequence[Slug | MixedSlug]:
+        return (self,)
+
+    def extend_tail(self, amount: Pt) -> Slug:
+        return self
+
+    def stretch_tail(self, ratio: float) -> Slug:
+        return self
+
+    def hyphenate(self, w: Pt, /) -> tuple[None, Slug]:
+        return None, self
+
+    # FUTURE: does this need to be in the interface?
+    def minimal_box(self) -> tuple[Slug, None]:
+        return self, None
+
+    def prunable_space(self) -> Pt:
+        return 0
+
+    def to_atoms(self) -> Iterable[LiteralStr | Real]:
+        return _encode_kerning(self.txt, self.kern, self.state.font)
+
+    # FUTURE: we can be more efficient in writing multi-word strings.
+    #         In the current situation they are always separated.
+    def encode_into_line(
+        self, line: Iterable[LiteralStr | Real]
+    ) -> Generator[bytes, None, Iterable[LiteralStr | Real]]:
+        return chain(line, self.to_atoms())
+        # We need have one `yield` statement to turn this into a generator.
+        # It doesn't matter that it will never be reached.
+        yield  # type: ignore[unreachable]
+
+
+@add_slots
+@dataclass(frozen=True)
+class MixedSlug(WordLike):
+    """A fragment of text containing commands within it. For example a word
+    which is partially italic."""
+
+    segments: NonEmptySequence[tuple[Slug, Command]]
+    state: State = field(repr=False)
+
+    tail: ClassVar[None] = None
+
+    def prunable_space(self) -> Pt:
+        return 0
+
+    def pruned(self) -> MixedSlug:
+        return self
+
+    def pruned_width(self) -> Pt:
+        return self.width
+
+    def minimal_box(self) -> tuple[WordLike, WordLike | None]:
+        return self, None
+
+    @property
+    def boxes(self) -> Sequence[MixedSlug]:
+        return (self,)
+
+    def pre_state(self) -> State:
+        return self.segments[0][0].state
+
+    def last(self) -> Char:
+        return self.segments[-1][0].last()
+
+    def extend_tail(self, amount: Pt) -> MixedSlug:
+        return self
+
+    def stretch_tail(self, ratio: float) -> MixedSlug:
+        return self
+
+    def hyphenate(self, w: Pt, /) -> tuple[None, MixedSlug]:
+        return None, self
+
+    def with_hyphen(self) -> MixedSlug:
+        return MixedSlug(
             (
                 *self.segments,
                 (
-                    Slug.nonempty(
-                        "-", self.state, self.segments[-1][0].last()
-                    ),
+                    Slug.new("-", self.state, self.segments[-1][0].last()),
                     NO_OP,
                 ),
             ),
             self.state,
         )
 
-    def without_init_kern(self) -> MixedBox:
+    def without_init_kern(self) -> MixedSlug:
         (first, cmd), *rest = self.segments
-        return MixedBox(
+        return MixedSlug(
             ((first.without_init_kern(), cmd), *rest),
             self.state,
         )
@@ -63,10 +298,10 @@ class MixedBox:
     def has_init_kern(self) -> bool:
         return self.segments[0][0].has_init_kern()
 
-    def indent(self, amount: Pt) -> MixedBox:
+    def indent(self, amount: Pt) -> MixedSlug:
         if amount:
             (first, cmd), *rest = self.segments
-            return MixedBox(
+            return MixedSlug(
                 ((first.indent(amount), cmd), *rest),
                 self.state,
             )
@@ -87,21 +322,56 @@ class MixedBox:
         return line
 
 
+def into_syllables(s: str, hyphens: Hyphenator) -> Iterable[str]:
+    leftover = ""
+    buffer: list[str] = []
+    end = 0
+    for match in _find_wordchars(s):
+        leftover += s[end : match.start()]  # noqa: E203
+        syllables = iter(hyphens(match.group()))
+        buffer.append(leftover + next(syllables))
+        buffer.extend(syllables)
+        leftover = buffer.pop()
+        yield from buffer
+        buffer.clear()
+        end = match.end()
+
+    if leftover or end < len(s):
+        yield leftover + s[end:]
+
+
 @add_slots
 @dataclass(frozen=True)
-class Word:
+class Word(WordLike):
     # FUTURE: defer hyphenation until it is absolutely necessary.
     #         this would improve performance
-    boxes: Sequence[Slug | MixedBox]
+    boxes: Sequence[Slug | MixedSlug]
     tail: TrailingSpace | None
-    state: State
+    state: State = field(repr=False)
+
+    def pre_state(self) -> State:
+        try:
+            first = self.boxes[0]
+        except IndexError:
+            return self.state
+        return first.pre_state()
+
+    def last(self) -> Char:
+        return " " if self.tail else self.boxes[-1].last()
+
+    def has_init_kern(self) -> bool:
+        return (
+            self.boxes[0].has_init_kern()
+            if self.boxes
+            else bool(self.tail and self.tail.kern)
+        )
 
     @staticmethod
-    def simple(s: str, state: State, prev: Char | None) -> Word:
+    def new(s: str, state: State, prev: Char | None) -> Word:
         s, tail = TrailingSpace.parse(s, state, prev)
         segments = []
-        for part in state.hyphens(s) if s else ():
-            segments.append(Slug.nonempty(part, state, prev))
+        for part in into_syllables(s, state.hyphens):
+            segments.append(Slug.new(part, state, prev))
             prev = part[-1]
         return Word(tuple(segments), tail, state)
 
@@ -154,7 +424,11 @@ class Word:
                 else self
             )
         elif self.tail and self.tail.kern:
-            return Word((), TrailingSpace(self.tail.width, 0), self.state)
+            return Word(
+                (),
+                TrailingSpace(self.tail.width_excl_kern, 0, self.tail.size),
+                self.state,
+            )
         else:
             return self
 
@@ -174,23 +448,32 @@ class Word:
     def pruned_width(self) -> Pt:
         return sum(s.width for s in self.boxes)
 
+    @property
     def width(self) -> Pt:
-        return self.pruned_width() + (self.tail.width if self.tail else 0)
+        return self.pruned_width() + (self.tail.width() if self.tail else 0)
 
-    def with_cmd(self, c: Command) -> WithCmd | Word:
-        if c is NO_OP:
-            return self
-        return WithCmd(self, c)
-
-    def stretch_tail(self, amount: Pt) -> Word:
+    def extend_tail(self, amount: Pt) -> Word:
         return (
             Word(self.boxes, self.tail.stretch(amount, self.state), self.state)
-            if self.tail
+            if self.tail and amount
+            else self
+        )
+
+    def stretch_tail(self, ratio: float) -> Word:
+        return (
+            Word(
+                self.boxes,
+                self.tail.stretch(
+                    ratio * self.tail.width_excl_kern, self.state
+                ),
+                self.state,
+            )
+            if self.tail and ratio != 1
             else self
         )
 
     def prunable_space(self) -> Pt:
-        return self.tail.width if self.tail else 0
+        return self.tail.width() if self.tail else 0
 
     def pruned(self) -> Word:
         return Word(self.boxes, None, self.state) if self.tail else self
@@ -209,23 +492,37 @@ class Word:
 
 @add_slots
 @dataclass(frozen=True)
-class WithCmd:
-    word: Word
+class WithCmd(WordLike):
+    word: WordLike
     cmd: Command
+
+    def last(self) -> Char:
+        return self.word.last()
+
+    def has_init_kern(self) -> bool:
+        return self.word.has_init_kern()
 
     @property
     def state(self) -> State:
         return self.cmd.apply(self.word.state)
 
+    def pre_state(self) -> State:
+        return self.word.pre_state()
+
     @property
     def tail(self) -> TrailingSpace | None:
         return self.word.tail
 
+    @property
+    def boxes(self) -> Sequence[Slug | MixedSlug]:
+        return self.word.boxes
+
     def without_init_kern(self) -> WithCmd:
         return WithCmd(self.word.without_init_kern(), self.cmd)
 
+    @property
     def width(self) -> Pt:
-        return self.word.width()
+        return self.word.width
 
     def pruned_width(self) -> Pt:
         return self.word.pruned_width()
@@ -233,22 +530,29 @@ class WithCmd:
     def pruned(self) -> WithCmd:
         return WithCmd(self.word.pruned(), self.cmd)
 
-    def stretch_tail(self, amount: Pt) -> WithCmd:
+    def extend_tail(self, amount: Pt) -> WithCmd:
         return (
-            WithCmd(self.word.stretch_tail(amount), self.cmd)
+            WithCmd(self.word.extend_tail(amount), self.cmd)
+            if self.word.tail and amount
+            else self
+        )
+
+    def stretch_tail(self, ratio: float) -> WithCmd:
+        return (
+            WithCmd(self.word.stretch_tail(ratio), self.cmd)
             if self.word.tail
             else self
         )
 
-    def hyphenate(self, w: Pt, /) -> tuple[Word | None, WordLike]:
+    def hyphenate(self, w: Pt, /) -> tuple[WordLike | None, WordLike]:
         a, b = self.word.hyphenate(w)
         return a, b.with_cmd(self.cmd)
 
     def minimal_box(self) -> tuple[WordLike, WordLike | None]:
         a, b = self.word.minimal_box()
         if b is None:
-            return WithCmd(a, self.cmd), None
-        return a, WithCmd(b, self.cmd)
+            return a.with_cmd(self.cmd), None
+        return a, b.with_cmd(self.cmd)
 
     def prunable_space(self) -> Pt:
         return self.word.prunable_space()
@@ -265,14 +569,12 @@ class WithCmd:
         return ()
 
 
-WordLike = Union[Word, WithCmd]
-
-
 @add_slots
 @dataclass(frozen=True)
 class TrailingSpace:
-    width: Pt  # including kerning adjustment
+    width_excl_kern: Pt  # including kerning adjustment
     kern: GlyphPt
+    size: Pt
 
     @staticmethod
     def parse(
@@ -282,159 +584,31 @@ class TrailingSpace:
         if s.endswith(" "):
             s = s[:-1]
             prev = s[-1] if s else prev
-            kern = state.font.charkern(prev, " ") if prev else 0
             tail = TrailingSpace(
-                (state.font.spacewidth + kern)
-                * state.size
-                / TEXTSPACE_TO_GLYPHSPACE,
-                kern,
+                state.font.spacewidth / TEXTSPACE_TO_GLYPHSPACE * state.size,
+                state.font.charkern(prev, " ") if prev else 0,
+                state.size,
             )
         return s, tail
 
+    # FUTURE: cache?
+    def width(self) -> Pt:
+        return (
+            self.width_excl_kern
+            + (self.kern * self.size) / TEXTSPACE_TO_GLYPHSPACE
+        )
+
     def stretch(self, amount: Pt, state: State) -> TrailingSpace:
         return TrailingSpace(
-            self.width + amount,
+            self.width_excl_kern,
             self.kern + (amount / state.size * TEXTSPACE_TO_GLYPHSPACE),
+            self.size,
         )
 
     def into_atoms(self, s: State) -> Iterable[Real | LiteralStr]:
         if self.kern:
             yield Real(-self.kern)
         yield LiteralStr(s.font.encode(" "))
-
-
-def parse(
-    it: Iterable[Passage], state: State
-) -> tuple[Command, Iterator[WordLike]]:
-    it = iter(it)
-    cmd, txt, state = _fold_commands(it, state)
-    return cmd, _parse_rest(it, state, txt) if txt else iter(())
-
-
-def _parse_rest(
-    it: Iterable[Passage], state: State, txt: str | None
-) -> Iterator[WordLike]:
-    it = iter(it)
-    prev: Char | None = None
-    pos = 0
-
-    while txt:
-        last = yield from _parse_simple_words(txt, pos, state, prev)
-        if isinstance(last, str):
-            last, txt, pos = _complete_word(it, last, state, prev)
-            state = last.state
-            if txt is None:
-                yield last
-                return
-            elif pos < len(txt):
-                yield last
-                continue
-        try:
-            cmd, txt = next(it)
-        except StopIteration:
-            yield last
-            return
-        yield last.with_cmd(cmd)
-        state = cmd.apply(state)
-        pos = 0
-
-
-def _parse_simple_words(
-    txt: str, pos: Pos, state: State, prev: Char | None
-) -> Generator[WordLike, None, str | Word]:
-    assert pos < len(txt)
-    ms = _WORD_RE.finditer(txt, pos)
-    try:
-        next_match = next(ms)
-    except StopIteration:
-        return txt[pos:]
-
-    for match, next_match in pairwise(prepend(next_match, ms)):
-        word = match.group()
-        match.groups()
-        yield Word.simple(word, state, prev)
-        prev = word[-1]
-
-    final_word = Word.simple(next_match.group(), state, prev)
-    pos = next_match.end()
-    if pos < len(txt):
-        yield final_word
-        return txt[pos:]
-    else:
-        return final_word
-
-
-def _complete_word(
-    it: Iterator[Passage], head: str, state: State, prev: Char | None
-) -> tuple[Word, str | None, Pos]:
-    parts: list[tuple[Command, str]] = []
-    has_trailing_space = False
-    st: Passage | None
-    for st in it:
-        if match := _WORD_RE.search(st.txt):
-            word = match.group()
-            if word.endswith(" "):
-                has_trailing_space = True
-                word = word[:-1]
-            parts.append((st.cmd, word))
-            pos = match.end()
-            break
-        parts.append((st.cmd, st.txt))
-    else:
-        pos = 0
-        st = None
-        if not parts:
-            # A common case -- i.e. no space after the last word of a paragraph
-            return Word.simple(head, state, prev), st, pos
-
-    # SIMPLIFICATION: for now, we don't hyphenate words that are split across
-    # multiple styles. This because it's a rare case, and it's non-trivial
-    # to implement.
-
-    seg = Slug.nonempty(head, state, prev)
-    prev = seg.last()
-    segments: list[tuple[Slug, Command]] = []
-    cmds = []
-    for cmd, txt in parts:
-        new_state = cmd.apply(state)
-        prev = prev if state.kerns_with(new_state) else None
-        state = new_state
-        cmds.append(cmd)
-        if txt:
-            segments.append((seg, Chain.squash(cmds)))
-            cmds.clear()
-            seg = Slug.nonempty(txt, state, prev)
-            prev = txt[-1]
-
-    segments.append((seg, Chain.squash(cmds)))
-
-    trailing_space = None
-    if has_trailing_space:
-        kern = state.font.charkern(prev, " ") if prev else 0
-        trailing_space = TrailingSpace(
-            (state.font.spacewidth + kern)
-            * state.size
-            / TEXTSPACE_TO_GLYPHSPACE,
-            kern,
-        )
-
-    return (
-        Word((MixedBox(tuple(segments), state),), trailing_space, state),
-        st.txt if st else None,
-        pos,
-    )
-
-
-def _fold_commands(
-    it: Iterator[Passage], state: State
-) -> tuple[Command, str | None, State]:
-    buffer: list[Command] = []
-    for s in it:
-        buffer.append(s.cmd)
-        state = s.cmd.apply(state)
-        if s.txt:
-            return Chain.squash(buffer), s.txt, state
-    return Chain.squash(buffer), None, state
 
 
 def render_kerned(content: Iterable[LiteralStr | Real]) -> Streamable:
@@ -449,3 +623,28 @@ def indent_first(ws: Iterable[WordLike], amount: Pt) -> Iterator[WordLike]:
         return
     yield first.indent(amount)
     yield from it
+
+
+# FUTURE: handle generic iterable
+def _encode_kerning(
+    txt: str, kerning: Sequence[Kern], f: Font
+) -> Iterable[LiteralStr | Real]:
+    encoded = f.encode(txt)
+    try:
+        index_prev, space = kerning[0]
+    except IndexError:
+        yield LiteralStr(encoded)
+        return
+
+    if index_prev == 0:  # i.e. the case where we kern before any text
+        yield Real(-space)
+        kerning = kerning[1:]
+
+    index_prev = index = 0
+    for index, space in kerning:
+        index *= f.encoding_width
+        yield LiteralStr(encoded[index_prev:index])
+        yield Real(-space)
+        index_prev = index
+
+    yield LiteralStr(encoded[index:])

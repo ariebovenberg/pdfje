@@ -56,7 +56,9 @@ class AutoPage:
             PageFill.new, map(self.template, count(pnum))
         )
         for block in map(_as_block, self.content):
-            pages, filled = fill_pages(pages, partial(block.fill, r, s))
+            pages, filled = fill_pages(
+                pages, partial(block.into_columns, r, s)
+            )
             for p in filled:
                 yield p.base.fill(r, s, flatten(p.done))
 

@@ -3,9 +3,17 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass
 from itertools import islice, tee
-from typing import Callable, Iterable, Iterator, Sequence
+from typing import Callable, Iterator, Sequence
 
-from ..common import XY, Streamable, add_slots, flatten, peek, prepend
+from ..common import (
+    XY,
+    Streamable,
+    add_slots,
+    fix_abstract_properties,
+    flatten,
+    peek,
+    prepend,
+)
 from ..page import Column, Page
 from ..resources import Resources
 from ..style import StyleFull
@@ -31,9 +39,25 @@ class Block(abc.ABC):
     # Why not a generator? Because a block may need to consume multiple
     # columns to render itself, before starting to yield completed columns
     @abc.abstractmethod
-    def fill(
+    def into_columns(
         self, res: Resources, style: StyleFull, cs: Iterator[ColumnFill], /
     ) -> Iterator[ColumnFill]:
+        ...
+
+
+@fix_abstract_properties
+class Shaped(abc.ABC):
+    __slots__ = ()
+
+    # FUTURE: remove width from this interface. It can be set
+    # on this object itself.
+    @abc.abstractmethod
+    def render(self, pos: XY, width: Pt) -> Streamable:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def height(self) -> Pt:
         ...
 
 
@@ -41,32 +65,36 @@ class Block(abc.ABC):
 @dataclass(frozen=True)
 class ColumnFill(Streamable):
     box: Column
-    blocks: Sequence[Iterable[bytes]]
+    blocks: Sequence[tuple[XY, Shaped]]
     height_free: Pt
 
     @staticmethod
     def new(col: Column) -> ColumnFill:
         return ColumnFill(col, [], col.height)
 
-    def add(self, e: Iterable[bytes], height: Pt) -> ColumnFill:
+    def add(self, s: Shaped) -> ColumnFill:
         return ColumnFill(
-            self.box, (*self.blocks, e), self.height_free - height
+            self.box,
+            (*self.blocks, (self.cursor(), s)),
+            self.height_free - s.height,
         )
 
     def cursor(self) -> XY:
         return self.box.origin.add_y(self.height_free)
 
     def __iter__(self) -> Iterator[bytes]:
-        yield from flatten(self.blocks)
+        for loc, s in self.blocks:
+            yield from s.render(loc, self.box.width)
 
 
 _ColumnFiller = Callable[[Iterator[ColumnFill]], Iterator[ColumnFill]]
 
 
+@add_slots
 @dataclass(frozen=True)
 class PageFill:
     base: Page
-    todo: Sequence[ColumnFill]  # in order they will be filled
+    todo: Sequence[ColumnFill]  # in the order they will be filled
     done: Sequence[ColumnFill]  # most recently filled last
 
     def reopen_most_recent_column(self) -> PageFill:
