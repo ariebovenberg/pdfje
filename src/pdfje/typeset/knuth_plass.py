@@ -7,11 +7,10 @@ Changes from the original algorithm:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from math import sqrt
 from operator import attrgetter
 from typing import Callable, Iterable, Literal, Sequence
 
-from ..common import add_slots
+from ..common import add_slots, peek
 from ..compat import pairwise
 
 Pos = int  # position in the list of boxes
@@ -47,7 +46,7 @@ def optimum_fit(
     width: Callable[[LineNum], float],
     tol: float,
     hyphen_penalty: float = 100,
-    consecutive_hyphen_penalty: float = 100,
+    consecutive_hyphen_penalty: float = 3000,
     fit_diff_penalty: float = 100,
     ragged: bool = False,
 ) -> Sequence[Break]:
@@ -61,36 +60,49 @@ def optimum_fit(
 
     Parameters
     ----------
-    bs : Iterable[Box]
+    bs
         The boxes to break.
-    width : Callable[[int], float]
+    width
         A function that returns the width of the line at the given line number.
         Line numbers start at 0.
-    tol : float
+    tol
         The tolerance for the adjustment ratio. If no feasible breaks are found
         for the given tolerance, a `NoFeasibleBreaks` exception is raised.
         A higher tolerance will still produce an optimal result,
         but it will take longer to compute and may contain
         more 'ugly' lines (if this causes the overall result to be better).
-    hyphen_penalty : float
+    hyphen_penalty
         The penalty for a hyphen at the end of a line.
-    consecutive_hyphen_penalty : float
+    consecutive_hyphen_penalty
         The penalty for consecutive hyphens.
-    fit_diff_penalty : float
+    fit_diff_penalty
         The penalty for a difference in fitness between two consecutive breaks.
         (for example a very loose line followed by a tight line)
-    ragged : bool
+    ragged
         The algorithm is slightly different depending on whether you need
         ragged or justified text.
         If `ragged` is `False` (i.e. justtified), lines are penalized
         for stretching/shrinking of space *between* words.
         If `ragged` is `True`, lines are penalized for unused space,
         regardless of how many spaces are available between words.
+
+        Note
+        ----
+
+        If ragged is set to `True`, the `stretch` value of the boxes
+        should all be the same, and the `shrink` value should be 0.
+        A good value for `stretch` is 3 times the space width.
+        (This is derived from the approach in the paper)
     """
     # FUTURE: The ragged case probably be optimized further -- by eliminating
     #         the fitness difference penalty, for example.
     ratio = ratio_ragged if ragged else ratio_justified
     g = _BreakNetwork()
+
+    try:
+        box_next, bs = peek(iter(bs))
+    except StopIteration:
+        return ()
 
     pos = 0
     for pos, (box, box_next) in enumerate(pairwise(bs), start=1):
@@ -99,7 +111,7 @@ def optimum_fit(
         if g.is_empty():
             # Breaking here saves us time needlessly looping over the boxes
             # once we know there are no feasible breaks
-            break
+            raise NoFeasibleBreaks()
 
         for node in list(g.nodes()):
             r = ratio(
@@ -136,16 +148,8 @@ def optimum_fit(
                     )
                 )
 
-    if not pos:  # i.e. there were no boxes at all -- nothing to do
-        return []
-
     return _optimal_end(
-        g.nodes(),
-        box_next,  # pyright: ignore[reportUnboundVariable]
-        pos + 1,
-        width,
-        fit_diff_penalty,
-        ratio,
+        g.nodes(), box_next, pos + 1, width, fit_diff_penalty, ratio
     ).unroll()
 
 
@@ -155,6 +159,7 @@ class Break:
     pos: Pos
     adjust: Ratio
     demerits: float
+    width: float
 
 
 class NoFeasibleBreaks(Exception):
@@ -178,6 +183,7 @@ def _optimal_end(
             _main_demerit(0, r)
             + (abs(_fitness(r) - n.fitness) > 1) * fit_diff_penalty
             + n.demerits,
+            box.incl_space,
             n,
         )
         for n in nodes
@@ -187,11 +193,13 @@ def _optimal_end(
             )
         )
         > -1
+        # We don't need to check for r <= tol,
+        # because the last line doesn't need to stretch
     )
 
     try:
         return min(options, key=_demerits)
-    except ValueError:  # i.e. min() on an empty sequence
+    except ValueError:  # i.e. options is empty
         raise NoFeasibleBreaks()
 
 
@@ -220,27 +228,18 @@ def ratio_justified(
 
 def ratio_ragged(
     measure: CumulativeWidth,
-    # Stretch/shrink aren't used, but they are necessary to make
-    # the function interchangeable with the other `ratio` function above.
-    stretch: CumulativeWidth,
-    shrink: CumulativeWidth,
+    _: CumulativeWidth,
+    __: CumulativeWidth,
     b: Box,
     space: float,
 ) -> Ratio:
-    length = b.incl_hyphen - measure
-    if (r := space / length) >= 1:
-        # If there is more space than needed, we return a positive number
-        # starting from 0.
-        # We use square root to account for the fact that the demerit function
-        # uses the cube of the ratio because it accounts for multiple
-        # stretchable spaces.
-        # FUTURE: this is bad for performance -- we should just square the
-        #         demerit function in case of ragged text instead.
-        return sqrt(r - 1)
+    leftover = space - b.incl_hyphen + measure
+    if leftover >= 0:
+        return leftover / b.stretch
     else:
-        # If there is not enough space, we return a significantly big negative
-        # number, indicating shrinking is not an option in ragged text.
-        return -BIG
+        # If there is not enough space, returning anything smaller than -1
+        # will cause the break to be discarded.
+        return -2
 
 
 def _main_demerit(penalty: float, r: Ratio) -> float:
@@ -253,6 +252,7 @@ class _EndNode:
     pos: Pos
     ratio: Ratio
     demerits: float
+    measure: float
     prev: _BreakNode = field(repr=False)
 
     def unroll(self) -> Sequence[Break]:
@@ -260,7 +260,12 @@ class _EndNode:
         result: list[Break] = []
         while node is not _ROOT:
             result.append(
-                Break(node.pos, node.ratio, node.demerits - node.prev.demerits)
+                Break(
+                    node.pos,
+                    node.ratio,
+                    node.demerits - node.prev.demerits,
+                    node.measure - node.prev.measure,
+                )
             )
             node = node.prev
         result.reverse()
@@ -297,6 +302,7 @@ class _BreakNetwork:
             (0, 0, 1): _ROOT
         }
 
+    # FUTURE: does the sorting of the output matter?
     def nodes(self) -> Iterable[_BreakNode]:
         return self._inner.values()
 
@@ -305,7 +311,7 @@ class _BreakNetwork:
         # OPTIMIZE: from the paper: "we need not remember the Class 0
         # possibility if its total demerits exceed those of the Class 2 break
         # plus the demerits for contrasting lines, since the Class 0
-        # breakpoint will never be optimum in such a case.
+        # breakpoint will never be optimum in such a case."
         old = self._inner.get(key)
         if old is None or n.demerits < old.demerits:
             self._inner[key] = n

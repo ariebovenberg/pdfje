@@ -1,29 +1,62 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from itertools import tee
-from operator import attrgetter
-from typing import Callable, Iterable, Iterator, Literal, Sequence, final
-
-from pdfje.typeset import firstfit
-from pdfje.typeset.lines import Line
-from pdfje.typeset.words import indent_first, parse
-
-from ..common import (
-    XY,
-    Align,
-    NonEmptyIterator,
-    Pt,
-    Streamable,
-    add_slots,
-    pipe,
-    prepend,
-    setattr_frozen,
+from typing import (
+    ClassVar,
+    Iterable,
+    Iterator,
+    Literal,
+    Protocol,
+    Sequence,
+    cast,
+    final,
 )
+
+from ..common import XY, Align, Pt, add_slots, advance, prepend, setattr_frozen
 from ..resources import Resources
 from ..style import Span, Style, StyledMixin, StyleFull, StyleLike
-from ..typeset.common import Passage, State, max_lead, splitlines
+from ..typeset import firstfit, optimum
+from ..typeset.layout import ShapedText
+from ..typeset.parse import into_words
+from ..typeset.state import Passage, State, max_lead, splitlines
+from ..typeset.words import WordLike, indent_first
 from .common import Block, ColumnFill
+
+
+@add_slots
+@dataclass(frozen=True)
+class LinebreakParams:
+    """Parameters for tweaking the optimum-fit algorithm.
+
+    Parameters
+    ----------
+    tolerance
+        The tolerance for the stretch of each line.
+        If no feasible solution is found, the tolerance is increased until
+        there is.
+        Increase the tolerance if you want to avoid hyphenation
+        at the cost of more stretching and longer runtime.
+    hyphen_penalty
+        The penalty for hyphenating a word. If increasing this value does
+        not result in fewer hyphens, try increasing the tolerance.
+    consecutive_hyphen_penalty
+        The penalty for placing hyphens on consecutive lines. If increasing
+        this value does not appear to work, try increasing the tolerance.
+    fitness_diff_penalty
+        The penalty for very tight and very loose lines following each other.
+    """
+
+    tolerance: float = 1
+    hyphen_penalty: float = 1000
+    consecutive_hyphen_penalty: float = 1000
+    fitness_diff_penalty: float = 1000
+
+    DEFAULT: ClassVar["LinebreakParams"]
+
+
+LinebreakParams.DEFAULT = LinebreakParams()
 
 
 @final
@@ -34,7 +67,7 @@ class Paragraph(Block, StyledMixin):
 
     Parameters
     ----------
-    content: str | Span | ~typing.Iterable[str | Span]
+    content
         The text to render. Can be a string, or a nested :class:`~pdfje.Span`.
     style
         The style to render the text with.
@@ -43,14 +76,21 @@ class Paragraph(Block, StyledMixin):
         The horizontal alignment of the text.
     indent
         The amount of space to indent the first line of the paragraph.
-    typeset
+    avoid_orphans
+        Whether to avoid orphans (single lines before or after a page or
+        column break).
+    optimal
+        Whether to use the optimal paragraph layout algorithm.
+        If set to ``False`` or ``None``, a faster but less optimal algorithm
+        is used. To customize the algorithm parameters, pass an
+        :class:`~pdfje.layout.LinebreakParams` object.
 
     Examples
     --------
 
     .. code-block:: python
 
-        from pdfje.blocks import Paragraph
+        from pdfje.layout import Paragraph
         from pdfje.style import Style
 
         Paragraph(
@@ -66,7 +106,8 @@ class Paragraph(Block, StyledMixin):
                 Span("ways", Style(size=14, italic=True)),
                 ".",
             ],
-            style=times_roman
+            style=times_roman,
+            optimal=False,
         )
 
     """
@@ -75,6 +116,8 @@ class Paragraph(Block, StyledMixin):
     style: Style
     align: Align
     indent: Pt
+    avoid_orphans: bool
+    optimal: LinebreakParams | None
 
     def __init__(
         self,
@@ -83,6 +126,8 @@ class Paragraph(Block, StyledMixin):
         align: Align
         | Literal["left", "center", "right", "justify"] = Align.LEFT,
         indent: Pt = 0,
+        avoid_orphans: bool = True,
+        optimal: LinebreakParams | bool | None = True,
     ):
         if isinstance(content, (str, Span)):
             content = [content]
@@ -90,8 +135,12 @@ class Paragraph(Block, StyledMixin):
         setattr_frozen(self, "style", Style.parse(style))
         setattr_frozen(self, "align", Align.parse(align))
         setattr_frozen(self, "indent", indent)
+        setattr_frozen(self, "avoid_orphans", avoid_orphans)
+        if isinstance(optimal, bool):
+            optimal = LinebreakParams.DEFAULT if optimal else None
+        setattr_frozen(self, "optimal", optimal)
 
-    def fill(
+    def into_columns(
         self, res: Resources, style: StyleFull, cs: Iterator[ColumnFill]
     ) -> Iterator[ColumnFill]:
         style |= self.style
@@ -100,127 +149,67 @@ class Paragraph(Block, StyledMixin):
         lead = max_lead(passages, state)
         col = next(cs)
         for para in splitlines(passages):
-            [*filled, col], state = _fill_subparagraph(
-                para, prepend(col, cs), state, self.indent, lead, self.align
+            cs, _branch = tee(prepend(col, cs))
+            [*filled, col], state = _fill_paragraph(
+                iter(para),
+                _branch,
+                state,
+                self.indent,
+                lead,
+                self.align,
+                self.avoid_orphans,
+                shape=cast(
+                    Shaper,
+                    (partial(optimum.shape, params=self.optimal))
+                    if self.optimal
+                    else firstfit.shape,
+                ),
             )
+            advance(cs, len(filled) + 1)
             yield from filled
         yield col
 
 
-def _fill_subparagraph(
-    txt: NonEmptyIterator[Passage],
+class Shaper(Protocol):
+    def __call__(
+        self,
+        ws: Iterator[WordLike],
+        columns: Iterator[XY],
+        allow_empty: bool,
+        lead: Pt,
+        avoid_orphans: bool,
+        align: Align,
+    ) -> Iterator[ShapedText]:
+        ...
+
+
+def _fill_paragraph(
+    txt: Iterator[Passage],
     cs: Iterator[ColumnFill],
     state: State,
     indent: Pt,
     lead: Pt,
     align: Align,
+    avoid_orphans: bool,
+    shape: Shaper,
 ) -> tuple[Iterable[ColumnFill], State]:
     done: list[ColumnFill] = []
     col = next(cs)
     allow_empty = bool(col.blocks)
-    cmd, words = parse(txt, state)
+    cmd, words = into_words(txt, state)
     state = cmd.apply(state)
     cs, _branch = tee(prepend(col, cs))
-    for lines, col in zip(  # pragma: no branch
-        firstfit.fill(
+    for chunk, col in zip(  # pragma: no branch
+        shape(
             indent_first(words, indent),
             (XY(c.box.width, c.height_free) for c in _branch),
             allow_empty=allow_empty,
             lead=lead,
+            align=align,
+            avoid_orphans=avoid_orphans,
         ),
         cs,
     ):
-        done.append(
-            col.add(
-                TypesetText(
-                    col.cursor(), lines, state, align, col.box.width, lead
-                ),
-                len(lines) * lead,
-            )
-        )
-        try:
-            state = lines[-1].words[-1].state
-        except IndexError:
-            # its OK -- just an empty subparagraph. The state doesn't change.
-            pass
-
+        done.append(col.add(chunk))
+        state = chunk.end_state() or state
     return done, state
-
-
-@add_slots
-@dataclass(frozen=True)
-class TypesetText(Streamable):
-    origin: XY
-    lines: Sequence[Line]
-    state: State
-    align: Align
-    width: Pt
-    lead: Pt
-
-    def __iter__(self) -> Iterator[bytes]:
-        yield b"BT\n%g %g Td\n" % self.origin.astuple()
-        yield from self.state
-        yield from _pick_renderer(self.align)(
-            self.lines, self.lead, self.width
-        )
-        yield b"ET\n"
-
-
-# _T = TypeVar("_T")
-
-
-# def _iter_index(it: Iterator[_T]) -> Callable[[int], _T]:
-#     cache: list[_T] = []
-
-#     def get(i: int) -> _T:
-#         try:
-#             return cache[i]
-#         except IndexError:
-#             cache.extend(islice(it, i - len(cache) + 1))
-#             return cache[i]
-
-#     return get
-
-
-def _render_left(lines: Iterable[Line], lead: Pt, _: Pt) -> Iterator[bytes]:
-    yield b"%g TL\n" % lead
-    for ln in lines:
-        yield b"T*\n"
-        yield from ln
-
-
-def _render_justified(
-    lines: Iterable[Line], lead: Pt, width: Pt
-) -> Iterator[bytes]:
-    return _render_left(map(Line.justify, lines), lead, width)
-
-
-def _render_centered(
-    lines: Iterable[Line], lead: Pt, width: Pt
-) -> Iterator[bytes]:
-    for ln in lines:
-        yield b"%g %g TD\n" % ((width - ln.width) / 2, -lead)
-        yield from ln
-        width = ln.width
-
-
-def _render_right(
-    lines: Iterable[Line], lead: Pt, width: Pt
-) -> Iterator[bytes]:
-    for ln in lines:
-        yield b"%g %g TD\n" % ((width - ln.width), -lead)
-        yield from ln
-        width = ln.width
-
-
-_pick_renderer: Callable[
-    [Align], Callable[[Iterable[Line], Pt, Pt], Iterable[bytes]]
-] = pipe(
-    attrgetter("value"),
-    [
-        _render_left,
-        _render_centered,
-        _render_right,
-        _render_justified,
-    ].__getitem__,
-)

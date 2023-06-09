@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import abc
 from dataclasses import dataclass
-from operator import attrgetter
-from typing import Callable, Iterable, Iterator, Literal, Sequence, final
+from typing import Iterable, Iterator, Literal, Sequence, final
 
+from .atoms import LiteralStr, Real
 from .common import (
     RGB,
     XY,
@@ -16,11 +15,14 @@ from .common import (
     pipe,
     setattr_frozen,
 )
+from .page import Drawing
 from .resources import Resources
 from .style import Span, Style, StyledMixin, StyleFull, StyleLike
-from .typeset.common import Command, Passage, State, max_lead, splitlines
-from .typeset.lines import Line as TextLine
-from .typeset.words import parse as parse_words
+from .typeset.layout import Line as _TextLineBase
+from .typeset.layout import render_text
+from .typeset.parse import into_words
+from .typeset.state import Command, Passage, State, max_lead, splitlines
+from .typeset.words import WordLike, render_kerned
 
 __all__ = [
     "Circle",
@@ -31,17 +33,6 @@ __all__ = [
     "Text",
     "Drawing",
 ]
-
-
-class Drawing(abc.ABC):
-    """Base class for all drawing operations wich can be put on
-    a :class:`~pdfje.Page`."""
-
-    __slots__ = ()
-
-    @abc.abstractmethod
-    def render(self, r: Resources, s: StyleFull, /) -> Streamable:
-        ...
 
 
 @final
@@ -168,7 +159,7 @@ class Ellipse(Drawing):
         setattr_frozen(self, "stroke", stroke and RGB.parse(stroke))
 
     def render(self, _: Resources, __: StyleFull, /) -> Streamable:
-        yield from _ellipse(
+        return _ellipse(
             self.center, self.width, self.height, self.fill, self.stroke
         )
 
@@ -211,7 +202,7 @@ class Circle(Drawing):
 
     def render(self, _: Resources, __: StyleFull, /) -> Streamable:
         width = self.radius * 2
-        yield from _ellipse(self.center, width, width, self.fill, self.stroke)
+        return _ellipse(self.center, width, width, self.fill, self.stroke)
 
 
 def _finish(fill: RGB | None, stroke: RGB | None, close: bool) -> Streamable:
@@ -357,6 +348,7 @@ class Text(Drawing, StyledMixin):
         setattr_frozen(self, "content", content)
         setattr_frozen(self, "style", Style.parse(style))
         setattr_frozen(self, "align", Align.parse(align))
+        # FUTURE: a more elegant way to do this
         if self.align is Align.JUSTIFY:
             raise NotImplementedError(
                 "Justified alignment not implemented for explicitly "
@@ -365,64 +357,39 @@ class Text(Drawing, StyledMixin):
 
     def render(self, r: Resources, s: StyleFull, /) -> Streamable:
         state = s.as_state(r)
-        yield b"BT\n%g %g Td\n" % self.loc.astuple()
-        yield from state
         passages = list(self.flatten(r, s))
-        lead = max_lead(passages, state)
-        yield from _pick_renderer(self.align)(
-            into_lines(splitlines(passages), state), lead, 0
+        return render_text(
+            self.loc,
+            state,
+            0,
+            list(into_lines(splitlines(passages), state)),
+            max_lead(passages, state),
+            self.align,
         )
-        yield b"ET\n"
+
+
+@add_slots
+@dataclass(frozen=True)
+class _TextLine(_TextLineBase):
+    cmd: Command
+    words: tuple[WordLike, ...]
+    width: Pt
+
+    def __iter__(self) -> Iterator[bytes]:
+        yield from self.cmd
+        content: Iterable[Real | LiteralStr] = ()
+        for w in self.words:
+            content = yield from w.encode_into_line(content)
+        yield from render_kerned(content)
 
 
 def into_lines(
     split: Iterable[Iterable[Passage]], state: State
-) -> Iterator[tuple[Command, TextLine]]:
+) -> Iterator[_TextLine]:
     for s in split:
-        cmd, [*words] = parse_words(s, state)
-        yield (cmd, TextLine(tuple(words), sum(w.width() for w in words), 0))
-        state = words[-1].state
-
-
-def _render_left(
-    lines: Iterable[tuple[Command, TextLine]], lead: Pt, _: Pt
-) -> Iterator[bytes]:
-    yield b"%g TL\n" % lead
-    for cmd, ln in lines:
-        yield from cmd
-        yield b"T*\n"
-        yield from ln
-
-
-def _render_centered(
-    lines: Iterable[tuple[Command, TextLine]], lead: Pt, width: Pt
-) -> Iterator[bytes]:
-    for cmd, ln in lines:
-        yield from cmd
-        yield b"%g %g TD\n" % ((width - ln.width) / 2, -lead)
-        yield from ln
-        width = ln.width
-
-
-def _render_right(
-    lines: Iterable[tuple[Command, TextLine]], lead: Pt, width: Pt
-) -> Iterator[bytes]:
-    for cmd, ln in lines:
-        yield from cmd
-        yield b"%g %g TD\n" % ((width - ln.width), -lead)
-        yield from ln
-        width = ln.width
-
-
-_pick_renderer: Callable[
-    [Align],
-    Callable[[Iterable[tuple[Command, TextLine]], Pt, Pt], Iterable[bytes]],
-] = pipe(
-    attrgetter("value"),
-    [
-        _render_left,
-        _render_centered,
-        _render_right,
-        _render_left,
-    ].__getitem__,
-)
+        cmd, [*words] = into_words(s, state)
+        yield _TextLine(cmd, tuple(words), sum(w.width for w in words))
+        try:
+            state = words[-1].state
+        except IndexError:
+            pass  # empty line -- no change to state

@@ -1,20 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import replace
-
 from pdfje.atoms import LiteralStr, Real
-from pdfje.common import Char
-from pdfje.fonts.common import TEXTSPACE_TO_GLYPHSPACE
-from pdfje.typeset.common import (
-    NO_OP,
-    Passage,
-    Slug,
-    State,
-    _encode_kerning,
-    splitlines,
-)
+from pdfje.typeset.state import NO_OP, Passage, splitlines
+from pdfje.typeset.words import _encode_kerning
 
-from ..common import BIG, BLUE, FONT, GREEN, RED, STATE, approx
+from ..common import BIG, BLUE, FONT, GREEN, RED
 
 
 class TestSplitlines:
@@ -94,26 +84,3 @@ class TestEncodeKerning:
         assert list(_encode_kerning("abcdefg", [], FONT)) == [
             LiteralStr(b"abcdefg")
         ]
-
-
-class TestGaugedString:
-    def test_build(self):
-        s = g("Complex", STATE, " ")
-        assert s.kern == [(0, -15), (3, -10), (6, -20)]
-        assert (
-            s.width
-            == (
-                STATE.font.width("Complex")
-                + sum(x for _, x in s.kern) / TEXTSPACE_TO_GLYPHSPACE
-            )
-            * STATE.size
-        )
-
-
-def g(
-    s: str, st: State, prev: Char | None = None, approx_: bool = False
-) -> Slug:
-    """Helper to create a kerned string"""
-    assert s
-    string = Slug.nonempty(s, st, prev)
-    return replace(string, width=approx(string.width)) if approx_ else string

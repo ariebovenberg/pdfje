@@ -6,6 +6,7 @@ from pdfje import XY, AutoPage, Column, Document, Page
 from pdfje.draw import Text
 from pdfje.fonts import TrueType
 from pdfje.layout import Paragraph
+from pdfje.layout.paragraph import LinebreakParams
 from pdfje.style import Span, Style, italic
 from pdfje.units import inch, mm
 
@@ -138,22 +139,16 @@ giving advice to young ladies from boarding-schools. I think that I
 have touched bottom at last, however. This note I had this morning
 marks my zero-point, I fancy. Read it!” He tossed a crumpled letter
 across to me.
-“Pshaw, my dear fellow, what do the public, the great unobservant
-public, who could hardly tell a weaver by his tooth or a compositor by
-his left thumb, care about the finer shades of analysis and deduction!
-But, indeed, if you are trivial, I cannot blame you, for the days of
-the great cases are past. Man, or at least criminal man, has lost all
-enterprise and originality. As to my own little practice, it seems to
-be degenerating into an agency for recovering lost lead pencils and
-giving advice to young ladies from boarding-schools. I think that I
-have touched bottom at last, however. This note I had this morning
-marks my zero-point, I fancy. Read it!” He tossed a crumpled letter
-across to me.
 """
         ),
     ],
     align="justify",
-    indent=20,
+    indent=18,
+    optimal=LinebreakParams(
+        tolerance=1,
+        hyphen_penalty=1000,
+    ),
+    avoid_orphans=False,
 )
 
 

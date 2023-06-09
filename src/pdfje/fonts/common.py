@@ -8,7 +8,15 @@ from typing import TYPE_CHECKING, Iterable, Tuple, Union, final
 
 from .. import atoms
 from ..atoms import ASCII
-from ..common import Char, Func, Pos, Pt, add_slots, setattr_frozen
+from ..common import (
+    Char,
+    Func,
+    Pos,
+    Pt,
+    add_slots,
+    fix_abstract_properties,
+    setattr_frozen,
+)
 from ..compat import pairwise
 
 FontID = bytes  # unique, internal identifier assigned to a font within a PDF
@@ -16,6 +24,7 @@ GlyphPt = float  # length unit in glyph space
 TEXTSPACE_TO_GLYPHSPACE = 1000  # See PDF32000-1:2008 (9.7.3)
 
 
+@fix_abstract_properties
 class Font(abc.ABC):
     """A specific font within a typeface"""
 
@@ -57,16 +66,6 @@ class Font(abc.ABC):
     @abc.abstractmethod
     def charkern(self, a: Char, b: Char, /) -> GlyphPt:
         ...
-
-
-# The abstract properties don't mix well with dataclass inheritance.
-# Deleting properties at runtime fixes the issue. It has no runtime impact.
-# We rely on the type checker to ensure subclasses define the needed methods.
-if not TYPE_CHECKING:  # pragma: no cover
-    del Font.id
-    del Font.encoding_width
-    del Font.charwidth
-    del Font.spacewidth
 
 
 @final

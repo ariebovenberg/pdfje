@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from functools import partial
+from functools import partial, singledispatch
 from typing import (
     TYPE_CHECKING,
     ClassVar,
@@ -24,10 +24,17 @@ from pdfje.fonts.common import (
     KerningTable,
     kern,
 )
-from pdfje.typeset.common import Chain, Command, SetColor, SetFont, Slug, State
 from pdfje.typeset.hyphens import Hyphenator, never_hyphenate
-from pdfje.typeset.lines import Line
-from pdfje.typeset.words import WithCmd, Word, WordLike
+from pdfje.typeset.layout import Line, ShapedText
+from pdfje.typeset.state import (
+    Chain,
+    Command,
+    Passage,
+    SetColor,
+    SetFont,
+    State,
+)
+from pdfje.typeset.words import MixedSlug, Slug, WithCmd, Word
 
 T = TypeVar("T")
 
@@ -109,6 +116,7 @@ FONT = DummyFont(
             ("i", "c"): -10,
             (".", " "): -15,
             (" ", "c"): -15,
+            ("x", "-"): -15,
         },
         0,
     ),
@@ -176,6 +184,7 @@ Quisque lacus arcu, mattis vel rhoncus hendrerit, dapibus sed massa. \
 Vivamus sed massa est. In hac habitasse platea dictumst. \
 Nullam volutpat sapien quis tincidunt sagittis.\
 """
+LOREM_SHORT = "\n".join(LOREM_IPSUM.split("\n")[:2])
 
 ZEN_OF_PYTHON = """\
 Beautiful is better than ugly.
@@ -199,27 +208,69 @@ If the implementation is easy to explain, it may be a good idea.
 Namespaces are one honking great idea — let's do more of those!"""
 
 
-def plaintext(ws: Iterable[WordLike] | Line) -> str:
-    if isinstance(ws, Line):
-        body = "".join(map(_text_from_word, ws.words))
-        # FUTURE: this assumption that we can strip any trailing hyphen is
-        # not true in *all* cases -- but good enough for our tests.
-        return body.rstrip("-") if body.endswith("-") else (body + " ")
-    else:
-        return "".join(map(_text_from_word, ws))
+PASSAGES = [
+    Passage(BLUE, "Simple is better than com"),
+    Passage(RED, "plex. "),
+    Passage(BLACK, "Complex is better than "),
+    Passage(HUGE, "complicated. "),
+    Passage(NORMAL, "Flat is better than nested. "),
+    Passage(SMALL, "Sparse is better than d"),
+    Passage(NORMAL, "ense. "),
+    Passage(RED, "Readability counts. "),
+    Passage(BIG, "Special cases aren't special enough to "),
+    Passage(SMALL, "break the rules. "),
+]
 
 
-def _text_from_word(w: WordLike) -> str:
-    word: Word = w.word if isinstance(w, WithCmd) else w
-    body = "".join(
-        b.txt if isinstance(b, Slug) else "".join(p.txt for p, _ in b.segments)
-        for b in word.boxes
-    )
+@singledispatch
+def plaintext(ws: object) -> str:
+    if hasattr(ws, "__iter__"):  # a bit hacky, but convenient for testing
+        return "".join(map(plaintext, ws))
+    raise NotImplementedError(f"plaintext not implemented for {type(ws)}")
 
+
+@plaintext.register
+def _(w: Word) -> str:
+    body = "".join(map(plaintext, w.boxes))
     if w.tail:
         body += " "
-
     return body
+
+
+@plaintext.register
+def _(p: ShapedText) -> str:
+    body = ""
+    for line in p.lines:
+        if body.endswith("-"):
+            body = body[:-1]
+        elif body:
+            body += " "
+        body += "".join(map(plaintext, line.words))
+    if body.endswith("-"):
+        body = body[:-1]
+    else:
+        body += " "
+    return body
+
+
+@plaintext.register
+def _(ln: Line) -> str:
+    return plaintext(ln.words)
+
+
+@plaintext.register
+def _(w: WithCmd) -> str:
+    return plaintext(w.word)
+
+
+@plaintext.register
+def _(w: MixedSlug) -> str:
+    return "".join(plaintext(p) for p, _ in w.segments)
+
+
+@plaintext.register
+def _(w: Slug) -> str:
+    return w.txt
 
 
 if TYPE_CHECKING:
