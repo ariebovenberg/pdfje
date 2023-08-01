@@ -41,7 +41,7 @@ mypy = "^1.0.0"
 black = "^23.1"
 flake8 = "^6.0.0"
 isort = "^5.7.0"
-slotscheck = "^0.16.1"
+slotscheck = ">=0.16.1,<0.18.0"
 
 
 [tool.black]
