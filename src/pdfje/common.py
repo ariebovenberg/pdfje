@@ -266,7 +266,7 @@ class Sides(Sequence[float]):
             if len(v) == 4:
                 return Sides(*v)
             elif len(v) == 3:
-                return Sides(v[0], v[1], v[2], v[1])  # type: ignore[misc]
+                return Sides(v[0], v[1], v[2], v[1])
             elif len(v) == 2:
                 return Sides(v[0], v[1], v[0], v[1])
             else:
