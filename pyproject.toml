@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pdfje"
-version = "0.6.0"
+version = "0.6.1"
 description = "Write beautiful PDFs in declarative Python"
 authors = ["Arie Bovenberg <a.c.bovenberg@gmail.com>"]
 license = "MIT"
@@ -9,6 +9,7 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 packages = [
     { include = "pdfje", from = "src" },
