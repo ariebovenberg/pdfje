@@ -253,13 +253,13 @@ woff = ["brotli (>=1.0.1)", "brotlicffi (>=0.8.0)", "zopfli (>=0.1.4)"]
 
 [[package]]
 name = "hypothesis"
-version = "6.92.2"
+version = "6.92.3"
 description = "A library for property-based testing"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "hypothesis-6.92.2-py3-none-any.whl", hash = "sha256:d335044492acb03fa1fdb4edacb81cca2e578049fc7306345bc0e8947fef15a9"},
-    {file = "hypothesis-6.92.2.tar.gz", hash = "sha256:841f89a486c43bdab55698de8929bd2635639ec20bf6ce98ccd75622d7ee6d41"},
+    {file = "hypothesis-6.92.3-py3-none-any.whl", hash = "sha256:c719fe8f17e9d739b119484c03598d3cf7201a4df24df74619f092021edd3df6"},
+    {file = "hypothesis-6.92.3.tar.gz", hash = "sha256:5dc1949e0d070b19ffd54430eaaf51ca7cc5d8ee5e6e919eecdcfb50ffceb52d"},
 ]
 
 [package.dependencies]
