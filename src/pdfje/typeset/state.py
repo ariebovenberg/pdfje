@@ -26,8 +26,7 @@ class Command(Streamable):
     __slots__ = ()
 
     @abc.abstractmethod
-    def apply(self, s: State, /) -> State:
-        ...
+    def apply(self, s: State, /) -> State: ...
 
 
 @add_slots

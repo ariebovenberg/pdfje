@@ -2,6 +2,7 @@
 
 Usage: `python parse_afm.py <path/to/afm-file.afm>`
 """
+
 from __future__ import annotations
 
 import sys

@@ -20,11 +20,9 @@ def never_hyphenate(txt: str) -> Iterable[str]:
 if TYPE_CHECKING:
 
     class Pyphen:
-        def __init__(self, lang: str) -> None:
-            ...
+        def __init__(self, lang: str) -> None: ...
 
-        def positions(self, txt: str) -> Iterable[int]:
-            ...
+        def positions(self, txt: str) -> Iterable[int]: ...
 
     HAS_PYPHEN = True
 

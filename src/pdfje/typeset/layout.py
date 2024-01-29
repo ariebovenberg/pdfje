@@ -68,13 +68,11 @@ class Line(Streamable):
 
     @property
     @abc.abstractmethod
-    def words(self) -> Sequence[WordLike]:
-        ...
+    def words(self) -> Sequence[WordLike]: ...
 
     @property
     @abc.abstractmethod
-    def width(self) -> Pt:
-        ...
+    def width(self) -> Pt: ...
 
 
 def _render_left(lines: Iterable[Line], lead: Pt, _: Pt) -> Iterator[bytes]:

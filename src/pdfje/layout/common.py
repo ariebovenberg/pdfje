@@ -41,8 +41,7 @@ class Block(abc.ABC):
     @abc.abstractmethod
     def into_columns(
         self, res: Resources, style: StyleFull, cs: Iterator[ColumnFill], /
-    ) -> Iterator[ColumnFill]:
-        ...
+    ) -> Iterator[ColumnFill]: ...
 
 
 @fix_abstract_properties
@@ -52,13 +51,11 @@ class Shaped(abc.ABC):
     # FUTURE: remove width from this interface. It can be set
     # on this object itself.
     @abc.abstractmethod
-    def render(self, pos: XY, width: Pt) -> Streamable:
-        ...
+    def render(self, pos: XY, width: Pt) -> Streamable: ...
 
     @property
     @abc.abstractmethod
-    def height(self) -> Pt:
-        ...
+    def height(self) -> Pt: ...
 
 
 @add_slots

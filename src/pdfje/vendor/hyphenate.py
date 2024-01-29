@@ -14,6 +14,7 @@
     This Python code is in the public domain.
 
 """  # noqa
+
 from __future__ import annotations
 
 import re

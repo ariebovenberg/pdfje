@@ -1,4 +1,5 @@
 """Low-level PDF objects and operations"""
+
 from __future__ import annotations
 
 import abc

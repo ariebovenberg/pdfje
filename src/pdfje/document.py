@@ -71,12 +71,10 @@ class Document:
         setattr_frozen(self, "style", Style.parse(style))
 
     @overload
-    def write(self) -> Iterator[bytes]:
-        ...
+    def write(self) -> Iterator[bytes]: ...
 
     @overload
-    def write(self, target: os.PathLike[str] | str | IO[bytes]) -> None:
-        ...
+    def write(self, target: os.PathLike[str] | str | IO[bytes]) -> None: ...
 
     def write(  # type: ignore[return]
         self, target: os.PathLike[str] | str | IO[bytes] | None = None

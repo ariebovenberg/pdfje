@@ -32,14 +32,12 @@ class Font(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def id(self) -> FontID:
-        ...
+    def id(self) -> FontID: ...
 
     # It's worth caching this value, as it is used often
     @property
     @abc.abstractmethod
-    def spacewidth(self) -> GlyphPt:
-        ...
+    def spacewidth(self) -> GlyphPt: ...
 
     @property
     @abc.abstractmethod
@@ -47,8 +45,7 @@ class Font(abc.ABC):
         """The number of bytes assigned to each character when encoding"""
 
     @abc.abstractmethod
-    def encode(self, s: str, /) -> bytes:
-        ...
+    def encode(self, s: str, /) -> bytes: ...
 
     @abc.abstractmethod
     def width(self, s: str, /) -> Pt:
@@ -56,16 +53,13 @@ class Font(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def charwidth(c: Char, /) -> GlyphPt:
-        ...
+    def charwidth(c: Char, /) -> GlyphPt: ...
 
     @abc.abstractmethod
-    def kern(self, s: str, /, prev: Char | None) -> Iterable[Kern]:
-        ...
+    def kern(self, s: str, /, prev: Char | None) -> Iterable[Kern]: ...
 
     @abc.abstractmethod
-    def charkern(self, a: Char, b: Char, /) -> GlyphPt:
-        ...
+    def charkern(self, a: Char, b: Char, /) -> GlyphPt: ...
 
 
 @final
@@ -111,11 +105,9 @@ class TrueType:
         from ..common import HexColor
         from ..style import Style, StyleLike
 
-        def __or__(self, _: StyleLike, /) -> Style:
-            ...
+        def __or__(self, _: StyleLike, /) -> Style: ...
 
-        def __ror__(self, _: HexColor, /) -> Style:
-            ...
+        def __ror__(self, _: HexColor, /) -> Style: ...
 
     def font(self, bold: bool, italic: bool) -> Path:
         if bold:
@@ -142,11 +134,9 @@ class BuiltinTypeface:
         from ..common import HexColor
         from ..style import Style, StyleLike
 
-        def __or__(self, _: StyleLike, /) -> Style:
-            ...
+        def __or__(self, _: StyleLike, /) -> Style: ...
 
-        def __ror__(self, _: HexColor, /) -> Style:
-            ...
+        def __ror__(self, _: HexColor, /) -> Style: ...
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.regular.name.decode()})"

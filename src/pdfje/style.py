@@ -113,9 +113,11 @@ class Style:
         setattr_frozen(
             self,
             "hyphens",
-            None
-            if isinstance(hyphens, _NOT_SET)
-            else parse_hyphenator(hyphens),
+            (
+                None
+                if isinstance(hyphens, _NOT_SET)
+                else parse_hyphenator(hyphens)
+            ),
         )
 
     # Use this instead of replace() to avoid triggering __init__.

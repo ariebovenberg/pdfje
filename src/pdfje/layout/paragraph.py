@@ -123,8 +123,9 @@ class Paragraph(Block, StyledMixin):
         self,
         content: str | Span | Sequence[str | Span],
         style: StyleLike = Style.EMPTY,
-        align: Align
-        | Literal["left", "center", "right", "justify"] = Align.LEFT,
+        align: (
+            Align | Literal["left", "center", "right", "justify"]
+        ) = Align.LEFT,
         indent: Pt = 0,
         avoid_orphans: bool = True,
         optimal: LinebreakParams | bool | None = True,
@@ -160,9 +161,11 @@ class Paragraph(Block, StyledMixin):
                 self.avoid_orphans,
                 shape=cast(
                     Shaper,
-                    (partial(optimum.shape, params=self.optimal))
-                    if self.optimal
-                    else firstfit.shape,
+                    (
+                        (partial(optimum.shape, params=self.optimal))
+                        if self.optimal
+                        else firstfit.shape
+                    ),
                 ),
             )
             advance(cs, len(filled) + 1)
@@ -179,8 +182,7 @@ class Shaper(Protocol):
         lead: Pt,
         avoid_orphans: bool,
         align: Align,
-    ) -> Iterator[ShapedText]:
-        ...
+    ) -> Iterator[ShapedText]: ...
 
 
 def _fill_paragraph(

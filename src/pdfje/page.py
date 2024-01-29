@@ -31,8 +31,7 @@ class Drawing(abc.ABC):
     __slots__ = ()
 
     @abc.abstractmethod
-    def render(self, r: Resources, s: StyleFull, /) -> Streamable:
-        ...
+    def render(self, r: Resources, s: StyleFull, /) -> Streamable: ...
 
 
 @final

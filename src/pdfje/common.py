@@ -355,11 +355,9 @@ class RGB(Sequence[float]):
     if TYPE_CHECKING:  # pragma: no cover
         from .style import Style, StyleLike
 
-        def __or__(self, _: StyleLike, /) -> Style:
-            ...
+        def __or__(self, _: StyleLike, /) -> Style: ...
 
-        def __ror__(self, _: HexColor, /) -> Style:
-            ...
+        def __ror__(self, _: HexColor, /) -> Style: ...
 
     def __iter__(self) -> Iterator[float]:
         yield self.red
@@ -406,20 +404,17 @@ T9 = TypeVar("T9")
 
 
 @overload
-def pipe() -> Callable[[T1], T1]:
-    ...
+def pipe() -> Callable[[T1], T1]: ...
 
 
 @overload  # noqa: F811
-def pipe(__f1: Callable[[T1], T2]) -> Callable[[T1], T2]:
-    ...
+def pipe(__f1: Callable[[T1], T2]) -> Callable[[T1], T2]: ...
 
 
 @overload  # noqa: F811
 def pipe(
     __f1: Callable[[T1], T2], __f2: Callable[[T2], T3]
-) -> Callable[[T1], T3]:
-    ...
+) -> Callable[[T1], T3]: ...
 
 
 @overload  # noqa: F811
@@ -427,8 +422,7 @@ def pipe(
     __f1: Callable[[T1], T2],
     __f2: Callable[[T2], T3],
     __f3: Callable[[T3], T4],
-) -> Callable[[T1], T4]:
-    ...
+) -> Callable[[T1], T4]: ...
 
 
 @overload  # noqa: F811
@@ -437,8 +431,7 @@ def pipe(
     __f2: Callable[[T2], T3],
     __f3: Callable[[T3], T4],
     __f4: Callable[[T4], T5],
-) -> Callable[[T1], T5]:
-    ...
+) -> Callable[[T1], T5]: ...
 
 
 @overload  # noqa: F811
@@ -448,8 +441,7 @@ def pipe(
     __f3: Callable[[T3], T4],
     __f4: Callable[[T4], T5],
     __f5: Callable[[T5], T6],
-) -> Callable[[T1], T6]:
-    ...
+) -> Callable[[T1], T6]: ...
 
 
 @overload  # noqa: F811
@@ -460,8 +452,7 @@ def pipe(
     __f4: Callable[[T4], T5],
     __f5: Callable[[T5], T6],
     __f6: Callable[[T6], T7],
-) -> Callable[[T1], T7]:
-    ...
+) -> Callable[[T1], T7]: ...
 
 
 @overload  # noqa: F811
@@ -473,8 +464,7 @@ def pipe(
     __f5: Callable[[T5], T6],
     __f6: Callable[[T6], T7],
     __f7: Callable[[T7], T8],
-) -> Callable[[T1], T8]:
-    ...
+) -> Callable[[T1], T8]: ...
 
 
 @overload  # noqa: F811
@@ -487,8 +477,7 @@ def pipe(
     __f6: Callable[[Any], Any],
     __f7: Callable[[Any], Any],
     *__fn: Callable[[Any], Any],
-) -> Callable[[Any], Any]:
-    ...
+) -> Callable[[Any], Any]: ...
 
 
 def pipe(*__fs: Any) -> Any:  # noqa: F811
@@ -524,5 +513,4 @@ T_co = TypeVar("T_co", covariant=True)
 # shortcut for Callable[[T_contra], T_co]. Necessary for typing
 # dataclass fields, as Callable is interpreted incorrectly.
 class Func(Protocol[T_contra, T_co]):
-    def __call__(self, __value: T_contra) -> T_co:
-        ...
+    def __call__(self, __value: T_contra) -> T_co: ...

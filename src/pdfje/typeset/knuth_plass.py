@@ -4,6 +4,7 @@ Changes from the original algorithm:
 - Instead of generic glue and penalty, we use explicit spaces and hyphenation.
 - We don't allow for forced breaks within a paragraph -- only at the end.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

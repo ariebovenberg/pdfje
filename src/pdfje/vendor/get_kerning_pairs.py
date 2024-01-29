@@ -290,9 +290,9 @@ class OTFKernReader(object):
                                                     .Value1.XAdvance,
                                                 )
 
-                                            self.kerningPairs[
-                                                (l, r)
-                                            ] = kernValue
+                                            self.kerningPairs[(l, r)] = (
+                                                kernValue
+                                            )
 
 
 def for_font(f: ttLib.TTFont) -> Mapping[tuple[str, str], float]:
