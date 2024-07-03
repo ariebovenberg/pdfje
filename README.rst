@@ -28,7 +28,7 @@
 
 **Write beautiful PDFs in declarative Python.**
 
-*(Currently in active development. Leave a* ⭐️ *on GitHub if you're interested how this develops!)*
+*(Currently in development. Leave a* ⭐️ *on GitHub if you're interested how this develops!)*
 
 Features
 --------
@@ -92,13 +92,13 @@ install only the dependencies you need.
 Roadmap
 -------
 
-**Pdfje** is still in active development,
-so it is not yet feature-complete.
+**Pdfje** has basic functionality,
+but is not yet feature-complete.
 Until the 1.0 version, the API may change with minor releases.
 
 Features:
 
-✅ = implemented, 🚧 = planned, ❌ = not planned
+✅ = implemented, 🚧 = may be planned, ❌ = not planned
 
 - Typesetting
     - ✅ Automatic kerning
