@@ -21,10 +21,18 @@ _SHRINK_RATIO = 1 / 3
 
 
 class Parameters(Protocol):
-    tolerance: float
-    hyphen_penalty: float
-    consecutive_hyphen_penalty: float
-    fitness_diff_penalty: float
+
+    @property
+    def tolerance(self) -> float: ...
+
+    @property
+    def hyphen_penalty(self) -> float: ...
+
+    @property
+    def consecutive_hyphen_penalty(self) -> float: ...
+
+    @property
+    def fitness_diff_penalty(self) -> float: ...
 
 
 class ColumnQueue:
