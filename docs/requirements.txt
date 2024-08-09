@@ -1,4 +1,4 @@
 sphinx<8.1
-furo~=2024.7.18
+furo~=2024.8.6
 sphinx-toolbox~=3.7.0
 sphinx-autodoc-typehints~=2.2
