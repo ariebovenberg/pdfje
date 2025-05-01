@@ -28,8 +28,6 @@
 
 **Write beautiful PDFs in declarative Python.**
 
-*(Currently in development. Leave a* ⭐️ *on GitHub if you're interested how this develops!)*
-
 Features
 --------
 
