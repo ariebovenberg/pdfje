@@ -6,7 +6,7 @@ from itertools import tee
 from typing import Iterable, Iterator, NamedTuple, Sequence
 
 from ..atoms import LiteralStr, Real
-from ..common import XY, Align, NonEmptyIterator, Pt, add_slots, prepend
+from ..common import XY, Align, NonEmptyIterator, Pt, prepend
 from .layout import Line as _Line
 from .layout import ShapedText
 from .words import WordLike, render_kerned
@@ -165,8 +165,7 @@ def take_line(
     return (ws, Line(tuple(content), width - space, space))
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Line(_Line):
     words: tuple[WordLike, ...]
     width: Pt

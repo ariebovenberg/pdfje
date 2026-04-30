@@ -8,11 +8,11 @@ Changes from the original algorithm:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from itertools import pairwise
 from operator import attrgetter
 from typing import Callable, Iterable, Literal, Sequence
 
-from ..common import add_slots, peek
-from ..compat import pairwise
+from ..common import peek
 
 Pos = int  # position in the list of boxes
 LineNum = int  # zero-based line number
@@ -29,8 +29,7 @@ BIG: Ratio = 100
 Fitness = Literal[0, 1, 2, 3]
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Box:
     measure: CumulativeWidth
     stretch: CumulativeWidth
@@ -154,8 +153,7 @@ def optimum_fit(
     ).unroll()
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Break:
     pos: Pos
     adjust: Ratio
@@ -247,8 +245,7 @@ def _main_demerit(penalty: float, r: Ratio) -> float:
     return (1 + 100 * abs(r) ** 3 + penalty) ** 2
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class _EndNode:
     pos: Pos
     ratio: Ratio
@@ -273,8 +270,7 @@ class _EndNode:
         return result
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class _BreakNode:
     pos: Pos
     line: LineNum

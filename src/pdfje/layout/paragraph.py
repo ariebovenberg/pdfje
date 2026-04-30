@@ -14,7 +14,7 @@ from typing import (
     final,
 )
 
-from ..common import XY, Align, Pt, add_slots, advance, prepend, setattr_frozen
+from ..common import XY, Align, Pt, advance, prepend, setattr_frozen
 from ..resources import Resources
 from ..style import Span, Style, StyledMixin, StyleFull, StyleLike
 from ..typeset import firstfit, optimum
@@ -25,8 +25,7 @@ from ..typeset.words import WordLike, indent_first
 from .common import Block, ColumnFill
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class LinebreakParams:
     """Parameters for tweaking the optimum-fit algorithm.
 
@@ -60,8 +59,7 @@ LinebreakParams.DEFAULT = LinebreakParams()
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Paragraph(Block, StyledMixin):
     """A :class:`Block` that renders a paragraph of text.
 

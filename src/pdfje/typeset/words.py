@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from itertools import chain
+from itertools import chain, pairwise
 from typing import ClassVar, Generator, Iterable, Iterator, Sequence, TypeVar
 
 from pdfje.typeset.hyphens import Hyphenator
@@ -21,11 +21,9 @@ from ..common import (
     NonEmptySequence,
     Pt,
     Streamable,
-    add_slots,
     fix_abstract_properties,
     second,
 )
-from ..compat import pairwise
 from ..fonts.common import TEXTSPACE_TO_GLYPHSPACE, Font, GlyphPt, Kern
 from .state import NO_OP, Command, State
 
@@ -100,8 +98,7 @@ class WordLike(ABC):
         return self if cmd is NO_OP else WithCmd(self, cmd)
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Slug(WordLike):
     "A fragment of text with its measured width and kerning information"
     txt: str  # non-empty
@@ -217,8 +214,7 @@ class Slug(WordLike):
         yield  # type: ignore[unreachable]
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class MixedSlug(WordLike):
     """A fragment of text containing commands within it. For example a word
     which is partially italic."""
@@ -323,8 +319,7 @@ def into_syllables(s: str, hyphens: Hyphenator) -> Iterable[str]:
         yield leftover + s[end:]
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Word(WordLike):
     # FUTURE: defer hyphenation until it is absolutely necessary.
     #         this would improve performance
@@ -473,8 +468,7 @@ class Word(WordLike):
         )
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class WithCmd(WordLike):
     word: WordLike
     cmd: Command
@@ -552,8 +546,7 @@ class WithCmd(WordLike):
         return ()
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class TrailingSpace:
     width_excl_kern: Pt  # including kerning adjustment
     kern: GlyphPt

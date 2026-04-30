@@ -11,7 +11,6 @@ from .common import (
     HexColor,
     Pt,
     Streamable,
-    add_slots,
     pipe,
     setattr_frozen,
 )
@@ -36,8 +35,7 @@ __all__ = [
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Line(Drawing):
     """A :class:`Drawing` of a straight line segment.
 
@@ -72,8 +70,7 @@ class Line(Drawing):
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Rect(Drawing):
     """A :class:`Drawing` of a rectangle.
 
@@ -118,8 +115,7 @@ class Rect(Drawing):
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Ellipse(Drawing):
     """A :class:`Drawing` of an ellipse.
 
@@ -165,8 +161,7 @@ class Ellipse(Drawing):
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Circle(Drawing):
     """A :class:`Drawing` of a circle.
 
@@ -267,8 +262,7 @@ def _ellipse(
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Polyline(Drawing):
     """A :class:`Drawing` of a polyline.
 
@@ -313,8 +307,7 @@ class Polyline(Drawing):
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Text(Drawing, StyledMixin):
     """A :class:`Drawing` of text at the given location (not wrapped)
 
@@ -368,8 +361,7 @@ class Text(Drawing, StyledMixin):
         )
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class _TextLine(_TextLineBase):
     cmd: Command
     words: tuple[WordLike, ...]

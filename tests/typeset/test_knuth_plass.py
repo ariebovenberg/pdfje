@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from functools import partial
-from typing import Callable, Iterator, Sequence, Tuple, cast
+from typing import Callable, Iterator, Sequence, cast
 from unittest.mock import ANY
 
 import pytest
@@ -399,7 +399,7 @@ her favorite plaything.""",
 
     def test_ragged(self):
         words, boxes = cast(
-            Tuple[Tuple[str, ...], Tuple[Box, ...]],
+            tuple[tuple[str, ...], tuple[Box, ...]],
             zip(*_into_boxes(EXAMPLE, times_roman.regular.width, ragged=True)),
         )
         breaks = fit(boxes, lambda _: 25, tol=4, ragged=True)
@@ -426,7 +426,7 @@ ball was her favorite plaything."""
     @pytest.mark.parametrize("ragged", [False])
     def test_very_narrow_width(self, ragged):
         words, boxes = cast(
-            Tuple[Tuple[str, ...], Tuple[Box, ...]],
+            tuple[tuple[str, ...], tuple[Box, ...]],
             zip(
                 *_into_boxes(EXAMPLE, times_roman.regular.width, ragged=ragged)
             ),
@@ -451,7 +451,6 @@ cool foun\u00adtain, and when she was bored she took a golden ball, and threw \
 it up on high and caught it, and this ball was her favo\u00adrite play\u00ad\
 thing.\
 """
-
 
 _boxes = re.compile(r"([\w,.:\u2019]+-?)(\u00ad?)([ \\Z]?)").findall
 
@@ -545,6 +544,6 @@ def _into_boxes(
 
 
 WORDS, BOXES = cast(
-    Tuple[Tuple[str, ...], Tuple[Box, ...]],
+    tuple[tuple[str, ...], tuple[Box, ...]],
     zip(*_into_boxes(EXAMPLE, times_roman.regular.width)),
 )

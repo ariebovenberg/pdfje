@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 from typing import Generator, Iterable, Iterator
 
 from ..common import Char, Pos, prepend
-from ..compat import pairwise
 from ..fonts.common import TEXTSPACE_TO_GLYPHSPACE
 from .state import Chain, Command, Passage, State
 from .words import MixedSlug, Slug, TrailingSpace, Word, WordLike

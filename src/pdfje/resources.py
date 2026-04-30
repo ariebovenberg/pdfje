@@ -6,14 +6,12 @@ from typing import Iterable, Iterator
 
 from . import atoms
 from .atoms import ASCII
-from .common import add_slots
 from .fonts import BuiltinTypeface, TrueType
 from .fonts.common import BuiltinFont, Font, Typeface
 from .fonts.embed import OBJS_PER_EMBEDDED_FONT, Subset
 
 
-@add_slots
-@dataclass(frozen=True, eq=False)
+@dataclass(slots=True, frozen=True, eq=False)
 class Resources:
     """Keeps track of PDF resources within a document, such as fonts"""
 

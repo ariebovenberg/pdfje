@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from itertools import chain, islice, tee
 from operator import itemgetter
 from typing import (
@@ -14,9 +14,7 @@ from typing import (
     Mapping,
     Protocol,
     Sequence,
-    Tuple,
     TypeVar,
-    Union,
     final,
     overload,
 )
@@ -61,10 +59,8 @@ def fix_abstract_properties(t: Tclass) -> Tclass:
     return t
 
 
-@dataclass(frozen=True, repr=False)
+@dataclass(frozen=True, repr=False, slots=True)
 class always(Generic[T]):
-    __slots__ = ("_v",)
-
     _v: T
 
     def __call__(self, *_: Any, **__: Any) -> T:
@@ -82,31 +78,8 @@ def peek(it: Iterator[T]) -> tuple[T, Iterator[T]]:
 setattr_frozen = object.__setattr__
 
 
-# adapted from github.com/ericvsmith/dataclasses
-# under its Apache 2.0 license.
-def add_slots(cls: Tclass) -> Tclass:  # pragma: no cover
-    if "__slots__" in cls.__dict__:
-        raise TypeError(f"{cls.__name__} already specifies __slots__")
-    cls_dict = dict(cls.__dict__)
-    field_names = tuple(f.name for f in fields(cls))
-    cls_dict["__slots__"] = field_names
-    for field_name in field_names:
-        # Remove our attributes, if present. They'll still be
-        #  available in _MARKER.
-        cls_dict.pop(field_name, None)
-    # Remove __dict__ itself.
-    cls_dict.pop("__dict__", None)
-    # And finally create the class.
-    qualname = getattr(cls, "__qualname__", None)
-    cls = type(cls)(cls.__name__, cls.__bases__, cls_dict)
-    if qualname is not None:
-        cls.__qualname__ = qualname
-    return cls
-
-
 @final
-@add_slots
-@dataclass(frozen=True, repr=False)
+@dataclass(slots=True, frozen=True, repr=False)
 class XY(Sequence[float]):
     """Represents a point, vector, or size in 2D space, where the first
     coordinate is the horizontal component and the second is the vertical one.
@@ -222,8 +195,7 @@ class Align(enum.Enum):
         return align
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Sides(Sequence[float]):
     """Represents a set of four sides. Used for padding and margins."""
 
@@ -277,14 +249,13 @@ class Sides(Sequence[float]):
             raise TypeError(f"Cannot parse {v} as sides")
 
 
-SidesLike = Union[
-    Sides, Tuple[Pt, Pt, Pt, Pt], Tuple[Pt, Pt, Pt], Tuple[Pt, Pt], Pt
-]
+SidesLike = (
+    Sides | tuple[Pt, Pt, Pt, Pt] | tuple[Pt, Pt, Pt] | tuple[Pt, Pt] | Pt
+)
 
 
 @final
-@add_slots
-@dataclass(frozen=True, repr=False)
+@dataclass(slots=True, frozen=True, repr=False)
 class RGB(Sequence[float]):
     """Represents a color in RGB space, with values between 0 and 1.
 
@@ -375,8 +346,7 @@ magenta = RGB(1, 0, 1)
 cyan = RGB(0, 1, 1)
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class dictget(Generic[T, U]):
     _map: Mapping[T, U]
     default: U
@@ -390,7 +360,6 @@ class dictget(Generic[T, U]):
 
 # The copious overloads are to enable mypy to
 # deduce the proper callable types -- up to a limit.
-
 
 T1 = TypeVar("T1")
 T2 = TypeVar("T2")
@@ -495,9 +464,8 @@ def pipe(*__fs: Any) -> Any:  # noqa: F811
     return __pipe(__fs)
 
 
-@dataclass(frozen=True, repr=False)
+@dataclass(frozen=True, repr=False, slots=True)
 class __pipe:
-    __slots__ = ("_functions",)
     _functions: tuple[Callable[[Any], Any], ...]
 
     def __call__(self, value: Any) -> Any:

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass, field
-from itertools import chain, count
+from itertools import chain, count, pairwise
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, Tuple, Union, final
+from typing import TYPE_CHECKING, Iterable, final
 
 from .. import atoms
 from ..atoms import ASCII
@@ -13,11 +13,9 @@ from ..common import (
     Func,
     Pos,
     Pt,
-    add_slots,
     fix_abstract_properties,
     setattr_frozen,
 )
-from ..compat import pairwise
 
 FontID = bytes  # unique, internal identifier assigned to a font within a PDF
 GlyphPt = float  # length unit in glyph space
@@ -63,8 +61,7 @@ class Font(abc.ABC):
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class TrueType:
     """A TrueType font to be embedded in a PDF
 
@@ -117,8 +114,7 @@ class TrueType:
 
 
 @final
-@add_slots
-@dataclass(frozen=True, repr=False)
+@dataclass(slots=True, frozen=True, repr=False)
 class BuiltinTypeface:
     """A typeface that is built into the PDF renderer."""
 
@@ -148,12 +144,11 @@ class BuiltinTypeface:
             return self.italic if italic else self.regular
 
 
-Typeface = Union[BuiltinTypeface, TrueType]
+Typeface = BuiltinTypeface | TrueType
 
 
 @final
-@add_slots
-@dataclass(frozen=True, eq=False)
+@dataclass(slots=True, frozen=True, eq=False)
 class BuiltinFont(Font):
     name: ASCII
     id: FontID
@@ -189,8 +184,8 @@ class BuiltinFont(Font):
         )
 
 
-KerningTable = Func[Tuple[Char, Char], GlyphPt]
-Kern = Tuple[Pos, GlyphPt]
+KerningTable = Func[tuple[Char, Char], GlyphPt]
+Kern = tuple[Pos, GlyphPt]
 
 
 def kern(

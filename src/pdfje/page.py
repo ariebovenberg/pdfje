@@ -8,15 +8,7 @@ from typing import Iterable, Iterator, Literal, Sequence, final
 
 from . import atoms
 from .atoms import OBJ_ID_PAGETREE, OBJ_ID_RESOURCES
-from .common import (
-    XY,
-    Sides,
-    SidesLike,
-    Streamable,
-    add_slots,
-    flatten,
-    setattr_frozen,
-)
+from .common import XY, Sides, SidesLike, Streamable, flatten, setattr_frozen
 from .resources import Resources
 from .style import StyleFull
 from .units import A4, Pt, inch
@@ -35,8 +27,7 @@ class Drawing(abc.ABC):
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Column:
     """A column to lay out block elements in.
 
@@ -64,8 +55,7 @@ class Column:
         assert self.width > 0
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class RenderedPage:
     rotate: Rotation
     size: XY
@@ -84,8 +74,7 @@ class RenderedPage:
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Page:
     """A single page within a document. Contains drawings at given positions.
 

@@ -5,7 +5,7 @@ from functools import partial
 from itertools import chain, count
 from typing import Callable, Iterable, Iterator, final
 
-from ..common import add_slots, always, flatten, setattr_frozen
+from ..common import always, flatten, setattr_frozen
 from ..page import Page, RenderedPage
 from ..resources import Resources
 from ..style import StyleFull
@@ -14,8 +14,7 @@ from .paragraph import Paragraph
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class AutoPage:
     """Automatically lays out content on multiple pages.
 
