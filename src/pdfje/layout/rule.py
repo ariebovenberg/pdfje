@@ -11,7 +11,6 @@ from ..common import (
     Sides,
     SidesLike,
     Streamable,
-    add_slots,
     black,
     setattr_frozen,
 )
@@ -21,8 +20,7 @@ from .common import Block, ColumnFill, Shaped
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Rule(Block):
     """A :class:`Block` that draws a horizontal line"""
 
@@ -58,8 +56,7 @@ class Rule(Block):
         )
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class ShapedRule(Shaped):
     start: XY
     end: XY

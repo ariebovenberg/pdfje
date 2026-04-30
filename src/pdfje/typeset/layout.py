@@ -6,20 +6,12 @@ from typing import Callable, Iterable, Iterator, Sequence
 
 from pdfje.typeset.words import WordLike
 
-from ..common import (
-    XY,
-    Align,
-    Pt,
-    Streamable,
-    add_slots,
-    fix_abstract_properties,
-)
+from ..common import XY, Align, Pt, Streamable, fix_abstract_properties
 from ..layout.common import Shaped  # FUTURE: fix this near-circular dependency
 from .state import State
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class ShapedText(Shaped):
     lines: Sequence[Line]
     lead: Pt

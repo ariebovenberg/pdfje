@@ -8,7 +8,6 @@ from typing import Callable, Iterator, Sequence
 from ..common import (
     XY,
     Streamable,
-    add_slots,
     fix_abstract_properties,
     flatten,
     peek,
@@ -58,8 +57,7 @@ class Shaped(abc.ABC):
     def height(self) -> Pt: ...
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class ColumnFill(Streamable):
     box: Column
     blocks: Sequence[tuple[XY, Shaped]]
@@ -87,8 +85,7 @@ class ColumnFill(Streamable):
 _ColumnFiller = Callable[[Iterator[ColumnFill]], Iterator[ColumnFill]]
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class PageFill:
     base: Page
     todo: Sequence[ColumnFill]  # in the order they will be filled

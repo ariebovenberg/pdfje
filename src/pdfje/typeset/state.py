@@ -11,7 +11,6 @@ from ..common import (
     Pos,
     Pt,
     Streamable,
-    add_slots,
     flatten,
     prepend,
     setattr_frozen,
@@ -29,8 +28,7 @@ class Command(Streamable):
     def apply(self, s: State, /) -> State: ...
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class _NoOp(Command):
     def apply(self, s: State) -> State:
         return s
@@ -42,8 +40,7 @@ class _NoOp(Command):
 NO_OP = _NoOp()
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Chain(Command):
     items: Collection[Command]
 
@@ -66,8 +63,7 @@ class Chain(Command):
             return Chain(by_type.values())
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class SetFont(Command):
     font: Font
     size: Pt
@@ -79,8 +75,7 @@ class SetFont(Command):
         yield b"/%b %g Tf\n" % (self.font.id, self.size)
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class SetLineSpacing(Command):
     value: float
 
@@ -94,8 +89,7 @@ class SetLineSpacing(Command):
         return iter(())
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class SetColor(Command):
     value: RGB
 
@@ -106,8 +100,7 @@ class SetColor(Command):
         yield b"%g %g %g rg\n" % self.value.astuple()
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class SetHyphens(Command):
     value: Hyphenator
 
@@ -120,8 +113,7 @@ class SetHyphens(Command):
         return iter(())
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class State(Streamable):
     """Text state, see PDF 32000-1:2008, table 105"""
 

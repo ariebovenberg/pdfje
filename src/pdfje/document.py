@@ -8,7 +8,7 @@ from typing import IO, Iterable, Iterator, final, overload
 
 from . import atoms
 from .atoms import OBJ_ID_PAGETREE, OBJ_ID_RESOURCES
-from .common import add_slots, flatten, setattr_frozen
+from .common import flatten, setattr_frozen
 from .layout import Block, Paragraph
 from .layout.pages import AutoPage
 from .page import Page
@@ -20,8 +20,7 @@ _OBJS_PER_PAGE = 2
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Document:
     """a PDF Document
 
@@ -45,7 +44,6 @@ class Document:
     ...     AutoPage([LOREM_IPSUM, ZEN_OF_PYTHON]),
     ...     Page(),
     ... ])
-
 
     note
     ----

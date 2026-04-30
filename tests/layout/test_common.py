@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Iterable, Iterator
 
 from pdfje import XY, Column, Page
-from pdfje.common import Pt, add_slots
+from pdfje.common import Pt
 from pdfje.layout.common import ColumnFill, PageFill, Shaped, fill_pages
 from pdfje.units import A3, A4
 
@@ -34,8 +34,7 @@ PAGES = [
 ]
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class _DummyShapedBlock(Shaped):
     content: bytes
     height: Pt

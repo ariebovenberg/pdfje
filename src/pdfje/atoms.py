@@ -10,10 +10,10 @@ from functools import partial
 from itertools import accumulate, chain, repeat, starmap
 from math import isfinite
 from secrets import token_bytes
-from typing import Collection, Iterable, Iterator, Sequence, Tuple
+from typing import Collection, Iterable, Iterator, Sequence
 from zlib import compress
 
-from .common import add_slots, setattr_frozen
+from .common import setattr_frozen
 
 # PDF 32000-1:2008 (7.5.2) specifies that the header must be followed
 # immediately by a comment line containing at least 4 binary characters
@@ -35,11 +35,10 @@ class Atom(abc.ABC):
         raise NotImplementedError()
 
 
-Object = Tuple[ObjectID, Atom]
+Object = tuple[ObjectID, Atom]
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Bool(Atom):
     value: bool
 
@@ -47,8 +46,7 @@ class Bool(Atom):
         raise NotImplementedError()
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Name(Atom):
     value: ASCII
 
@@ -74,8 +72,7 @@ def sanitize_name(s: bytes) -> bytes:
     return b"".join(map(_sanitize_name_char, s))
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Int(Atom):
     value: int
 
@@ -83,8 +80,7 @@ class Int(Atom):
         return (b"%i" % self.value,)
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Real(Atom):
     value: float
 
@@ -94,8 +90,7 @@ class Real(Atom):
 
 
 # NOTE: this name avoids confusion with typing.LiteralString
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class LiteralStr(Atom):
     "See PDF32000-1:2008 (7.3.4.2)"
     value: bytes
@@ -107,8 +102,7 @@ class LiteralStr(Atom):
         return (b"(", _escape(self.value), b")")
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class HexString(Atom):
     value: bytes
 
@@ -116,8 +110,7 @@ class HexString(Atom):
         return (b"<", hexlify(self.value), b">")
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Array(Atom):
     items: Iterable[Atom]
 
@@ -129,8 +122,7 @@ class Array(Atom):
         yield b"]"
 
 
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Dictionary(Atom):
     content: Collection[tuple[ASCII, Atom]]
 
@@ -152,8 +144,7 @@ def _write_dict(d: Iterable[tuple[ASCII, Atom]]) -> Iterable[bytes]:
     yield b">>"
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Stream(Atom):
     content: Iterable[bytes]
     meta: Collection[tuple[ASCII, Atom]] = ()
@@ -174,8 +165,7 @@ class Stream(Atom):
         yield b"\nendstream"
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Ref(Atom):
     target: ObjectID
 

@@ -5,11 +5,11 @@ description = "Write beautiful PDFs in declarative Python"
 authors = ["Arie Bovenberg <a.c.bovenberg@gmail.com>"]
 license = "MIT"
 classifiers = [
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 packages = [
     { include = "pdfje", from = "src" },
@@ -21,7 +21,7 @@ repository = "https://github.com/ariebovenberg/pdfje"
 keywords = ["pdf"]
 
 [tool.poetry.dependencies]
-python = ">=3.8.1,<4.0"
+python = ">=3.10,<4.0"
 fonttools = {version="^4.38.0", optional=true}
 pyphen = {version=">=0.13.0", optional=true}
 
@@ -30,13 +30,13 @@ fonts = ["fonttools"]
 hyphens = ["pyphen"]
 
 [tool.poetry.group.test.dependencies]
-pytest = ">=7.0.1,<9.0.0"
-pytest-cov = ">=4,<6"
+pytest = ">=8,<9"
+pytest-cov = ">=4,<7"
 pytest-benchmark = "^4.0.0"
 hypothesis = "^6.68.2"
 
 [tool.poetry.group.typecheck.dependencies]
-mypy = "^1.0.0"
+mypy = "^1.6"
 
 [tool.poetry.group.linting.dependencies]
 black = "^24"

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from bisect import bisect
 from dataclasses import dataclass
+from functools import cache
 from math import inf
 from typing import Callable, ClassVar, Iterable, Iterator, Protocol, Sequence
 
 from pdfje.fonts.common import TEXTSPACE_TO_GLYPHSPACE
 
 from ..atoms import LiteralStr, Real
-from ..common import XY, Align, Pt, add_slots, peek
-from ..compat import cache
+from ..common import XY, Align, Pt, peek
 from .knuth_plass import Box, Break, NoFeasibleBreaks, optimum_fit
 from .layout import Line as _Line
 from .layout import ShapedText
@@ -76,8 +76,7 @@ class ColumnQueue:
         self.line_counts[i:] = map((1).__rsub__, self.line_counts[i:])
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Fragment:
     txt: WordLike
     on_break: WordLike | None
@@ -173,8 +172,7 @@ def into_boxes(
     return tuple(result)  # type: ignore[return-value]
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Line(_Line):
     words: Sequence[WordLike]
     width: Pt

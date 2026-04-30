@@ -9,11 +9,10 @@ from typing import (
     Iterator,
     Sequence,
     TypeVar,
-    Union,
     final,
 )
 
-from .common import RGB, HexColor, Pt, add_slots, setattr_frozen
+from .common import RGB, HexColor, Pt, setattr_frozen
 from .fonts.builtins import helvetica
 from .fonts.common import BuiltinTypeface, TrueType, Typeface
 from .resources import Resources
@@ -49,8 +48,7 @@ _NOTSET = _NOT_SET()
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Style:
     """Settings for visual style of text. All parameters are optional.
 
@@ -205,7 +203,7 @@ class Style:
     EMPTY: ClassVar[Style]
 
 
-StyleLike = Union[Style, RGB, Typeface, HexColor]
+StyleLike = Style | RGB | Typeface | HexColor
 Style.EMPTY = Style()
 
 bold = Style(bold=True)
@@ -216,8 +214,7 @@ regular = Style(bold=False, italic=False)
 """Shortcut for regular (non-bold or italic) style."""
 
 
-@add_slots
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class StyleFull:
     font: Typeface
     size: Pt
@@ -274,7 +271,6 @@ StyleFull.DEFAULT = StyleFull(
     helvetica, 12, False, False, RGB(0, 0, 0), 1.25, default_hyphenator
 )
 
-
 _T = TypeVar("_T")
 
 
@@ -317,8 +313,7 @@ class StyledMixin:
 
 
 @final
-@add_slots
-@dataclass(frozen=True, init=False)
+@dataclass(slots=True, frozen=True, init=False)
 class Span(StyledMixin):
     """A fragment of text with a style.
 

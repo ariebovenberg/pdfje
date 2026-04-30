@@ -16,7 +16,6 @@ from ..common import (
     Func,
     Ordinal,
     Pt,
-    add_slots,
     dictget,
     first,
     pipe,
@@ -39,7 +38,6 @@ except ModuleNotFoundError:  # pragma: no cover
 else:
     HAS_FONTTOOLS = True
     from ..vendor import get_kerning_pairs
-
 
 OBJS_PER_EMBEDDED_FONT = 7
 _GlyphName = str  # name uniquely identifying a glyph in a TTF font
@@ -89,8 +87,7 @@ if TYPE_CHECKING or HAS_FONTTOOLS:
         recommended_glyphs=True,
     )
 
-    @add_slots
-    @dataclass(frozen=True, eq=False, repr=False)
+    @dataclass(slots=True, frozen=True, eq=False, repr=False)
     class Subset(Font):
         id: FontID
         ttf: TTFont
@@ -378,8 +375,7 @@ else:  # pragma: no cover
         "Install with pdfje[fonts]"
     )
 
-    @add_slots
-    @dataclass(frozen=True)
+    @dataclass(slots=True, frozen=True)
     class Subset(Font):
         @staticmethod
         def new(i: FontID, font: Path) -> Subset:

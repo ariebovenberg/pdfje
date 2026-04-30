@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from functools import partial
-from itertools import chain, starmap
-from typing import TYPE_CHECKING, Callable, Iterable, Union
-
-from ..compat import pairwise
+from itertools import chain, pairwise, starmap
+from typing import TYPE_CHECKING, Callable, Iterable
 
 Hyphenator = Callable[[str], Iterable[str]]
 " hyphenation -> hy phen ation "
@@ -33,11 +31,10 @@ else:
         from pyphen import Pyphen
     except ImportError:  # pragma: no cover
         HAS_PYPHEN = False
-        HyphenatorLike = Union[Hyphenator, None]
+        HyphenatorLike = Hyphenator | None
     else:
         HAS_PYPHEN = True
-        HyphenatorLike = Union[Hyphenator, Pyphen, None]
-
+        HyphenatorLike = Hyphenator | Pyphen | None
 
 if HAS_PYPHEN:
 

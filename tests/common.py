@@ -124,7 +124,6 @@ FONT = DummyFont(
 
 STATE = mkstate(font=FONT, size=12, color=(0, 0, 0))
 
-
 RED = SetColor(RGB(1, 0, 0))
 GREEN = SetColor(RGB(0, 1, 0))
 BLUE = SetColor(RGB(0, 0, 1))
@@ -206,7 +205,6 @@ Although never is often better than *right* now.
 If the implementation is hard to explain, it's a bad idea.
 If the implementation is easy to explain, it may be a good idea.
 Namespaces are one honking great idea — let's do more of those!"""
-
 
 PASSAGES = [
     Passage(BLUE, "Simple is better than com"),
