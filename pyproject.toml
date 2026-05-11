@@ -30,7 +30,7 @@ fonts = ["fonttools"]
 hyphens = ["pyphen"]
 
 [tool.poetry.group.test.dependencies]
-pytest = ">=8,<9"
+pytest = ">=8,<10"
 pytest-cov = ">=4,<7"
 pytest-benchmark = ">=4,<6"
 hypothesis = "^6.68.2"
