@@ -1,4 +1,5 @@
 "Logic for breaking text into breakable units (words)."
+
 # Note that a lot of the complexity here is due to the fact that we need to
 # support changes to the text state (i.e. style), which can occur at any point
 # in the text.
@@ -101,6 +102,7 @@ class WordLike(ABC):
 @dataclass(slots=True, frozen=True)
 class Slug(WordLike):
     "A fragment of text with its measured width and kerning information"
+
     txt: str  # non-empty
     kern: Sequence[Kern]
     width: Pt  # including kerning

@@ -145,7 +145,7 @@ class Style:
         elif isinstance(other, RGB):
             return self._evolve(color=other)
         else:
-            return NotImplemented  # type: ignore[unreachable]
+            return NotImplemented
 
     def __ror__(self, other: HexColor, /) -> Style:
         return Style(color=RGB.parse(other)) | self
@@ -292,6 +292,7 @@ else:
 
 class StyledMixin:
     "A mixin for shared behavior of styled text classes"
+
     __slots__ = ()
     content: Sequence[str | Span]
     style: Style

@@ -1,4 +1,5 @@
 "A simple first-fit line wrapping algorithm."
+
 from __future__ import annotations
 
 from dataclasses import dataclass

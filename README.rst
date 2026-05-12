@@ -28,6 +28,9 @@
 
 **Write beautiful PDFs in declarative Python.**
 
+⚠️ Warning: this is a niche library. It excells in specific use cases.
+It's not a swiss-army-knife PDF library.
+
 Features
 --------
 
@@ -170,6 +173,6 @@ If you're looking for a PDF writer, you may want to check them out as well:
 - `fpdf2 <https://pyfpdf.github.io/fpdf2/index.html>`_
 - `ReportLab <https://www.reportlab.com/>`_
 - `WeasyPrint <https://weasyprint.org/>`_
-- `borb <httpsL//github.com/jorisschellekens/borb/>`_
+- `borb <https://github.com/jorisschellekens/borb/>`_
 - `wkhtmltopdf <https://wkhtmltopdf.org/>`_
 - `pydyf <https://github.com/CourtBouillon/pydyf>`_

@@ -63,18 +63,15 @@ chapter = Paragraph(
 Holmes, tossing aside the advertisement sheet of"""
         ),
         Span(" The Daily Telegraph", italic),
-        flatten_newlines(
-            """, “it is
+        flatten_newlines(""", “it is
 frequently in its least important and lowliest manifestations that the
 keenest pleasure is to be derived. It is pleasant to me to observe,
 Watson, that you have so far grasped this truth that in these little
 records of our cases which you have been good enough to draw up, and, I
 am bound to say, occasionally to embellish, you have given prominence
-not so much to the many """
-        ),
+not so much to the many """),
         Span("causes célèbres", italic),
-        flatten_newlines(
-            """ and sensational trials in
+        flatten_newlines(""" and sensational trials in
 which I have figured but rather to those incidents which may have been
 trivial in themselves, but which have given room for those faculties of
 deduction and of logical synthesis which I have made my special
@@ -139,8 +136,7 @@ giving advice to young ladies from boarding-schools. I think that I
 have touched bottom at last, however. This note I had this morning
 marks my zero-point, I fancy. Read it!” He tossed a crumpled letter
 across to me.
-"""
-        ),
+"""),
     ],
     align="justify",
     indent=18,

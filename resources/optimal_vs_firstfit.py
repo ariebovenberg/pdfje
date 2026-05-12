@@ -73,29 +73,23 @@ def flatten_newlines(txt: str) -> str:
 content = [
     Paragraph(
         [
-            flatten_newlines(
-                """\
+            flatten_newlines("""\
 “To the man who loves art for its own sake,” remarked Sherlock
-Holmes, tossing aside the advertisement sheet of"""
-            ),
+Holmes, tossing aside the advertisement sheet of"""),
             Span(" The Daily Telegraph", italic),
-            flatten_newlines(
-                """, “it is
+            flatten_newlines(""", “it is
 frequently in its least important and lowliest manifestations that the
 keenest pleasure is to be derived. It is pleasant to me to observe,
 Watson, that you have so far grasped this truth that in these little
 records of our cases which you have been good enough to draw up, and, I
 am bound to say, occasionally to embellish, you have given prominence
-not so much to the many """
-            ),
+not so much to the many """),
             Span("causes célèbres", italic),
-            flatten_newlines(
-                """ and sensational trials in
+            flatten_newlines(""" and sensational trials in
 which I have figured but rather to those incidents which may have been
 trivial in themselves, but which have given room for those faculties of
 deduction and of logical synthesis which I have made my special
-province.”"""
-            ),
+province.”"""),
         ],
         align="justify",
         indent=0,
@@ -107,8 +101,7 @@ province.”"""
     ),
     Paragraph(
         [
-            flatten_newlines(
-                """\
+            flatten_newlines("""\
 “And yet,” said I, smiling, “I cannot quite hold myself absolved from
 the charge of sensationalism which has been urged against my records.”
 
@@ -128,8 +121,7 @@ singular character.
 
 
 
-"""
-            ),
+"""),
         ],
         align="justify",
         indent=18,

@@ -145,13 +145,13 @@ class XY(Sequence[float]):
         if isinstance(other, (float, int)):
             return XY(self.x / other, self.y / other)
         else:
-            return NotImplemented  # type: ignore[unreachable]
+            return NotImplemented
 
     def __mul__(self, other: float | int) -> XY:
         if isinstance(other, (float, int)):
             return XY(self.x * other, self.y * other)
         else:
-            return NotImplemented  # type: ignore[unreachable]
+            return NotImplemented
 
     def __sub__(self, other: XY | tuple[float, float]) -> XY:
         if isinstance(other, tuple):
@@ -159,7 +159,7 @@ class XY(Sequence[float]):
         elif isinstance(other, XY):
             return XY(self.x - other.x, self.y - other.y)
         else:
-            return NotImplemented  # type: ignore[unreachable]
+            return NotImplemented
 
     def __add__(self, other: XY | tuple[float, float]) -> XY:
         if isinstance(other, tuple):
@@ -167,7 +167,7 @@ class XY(Sequence[float]):
         elif isinstance(other, XY):
             return XY(self.x + other.x, self.y + other.y)
         else:
-            return NotImplemented  # type: ignore[unreachable]
+            return NotImplemented
 
     def add_x(self, x: float) -> XY:
         return XY(self.x + x, self.y)

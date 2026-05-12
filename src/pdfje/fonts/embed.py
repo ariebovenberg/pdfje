@@ -360,9 +360,7 @@ if TYPE_CHECKING or HAS_FONTTOOLS:
     1 begincodespacerange
     <0000> <FFFF>
     endcodespacerange
-    """ % b"".join(
-        _CIDSYS_INFO.write()
-    )
+    """ % b"".join(_CIDSYS_INFO.write())
     _TO_UNICODE_CMAP_POST = b"""\
     endbfchar
     endcmap

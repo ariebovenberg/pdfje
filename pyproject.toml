@@ -36,10 +36,10 @@ pytest-benchmark = ">=4,<6"
 hypothesis = "^6.68.2"
 
 [tool.poetry.group.typecheck.dependencies]
-mypy = "^1.6"
+mypy = "^2.1"
 
 [tool.poetry.group.linting.dependencies]
-black = "^24"
+black = "^26.3"
 flake8 = ">=6,<8"
 isort = ">=5.7,<9.0"
 slotscheck = ">=0.17,<0.20"

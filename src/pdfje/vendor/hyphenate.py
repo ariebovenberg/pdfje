@@ -1,17 +1,17 @@
-""" Hyphenation, using Frank Liang's algorithm.
+"""Hyphenation, using Frank Liang's algorithm.
 
-    This module provides a single function to hyphenate words.  hyphenate_word takes
-    a string (the word), and returns a list of parts that can be separated by hyphens.
+This module provides a single function to hyphenate words.  hyphenate_word takes
+a string (the word), and returns a list of parts that can be separated by hyphens.
 
-    >>> hyphenate_word("hyphenation")
-    ['hy', 'phen', 'ation']
-    >>> hyphenate_word("supercalifragilisticexpialidocious")
-    ['su', 'per', 'cal', 'ifrag', 'ilis', 'tic', 'ex', 'pi', 'ali', 'do', 'cious']
-    >>> hyphenate_word("project")
-    ['project']
+>>> hyphenate_word("hyphenation")
+['hy', 'phen', 'ation']
+>>> hyphenate_word("supercalifragilisticexpialidocious")
+['su', 'per', 'cal', 'ifrag', 'ilis', 'tic', 'ex', 'pi', 'ali', 'do', 'cious']
+>>> hyphenate_word("project")
+['project']
 
-    Ned Batchelder, July 2007.
-    This Python code is in the public domain.
+Ned Batchelder, July 2007.
+This Python code is in the public domain.
 
 """  # noqa
 

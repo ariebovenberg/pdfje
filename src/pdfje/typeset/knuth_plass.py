@@ -292,6 +292,7 @@ _ROOT = _BreakNode(0, 0, 0, 1, 0, 0, 0, 0, False, NotImplemented)
 
 class _BreakNetwork:
     "A directed acyclic graph of possible breaks."
+
     __slots__ = ("_inner",)
 
     def __init__(self) -> None:

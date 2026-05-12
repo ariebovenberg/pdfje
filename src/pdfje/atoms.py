@@ -93,6 +93,7 @@ class Real(Atom):
 @dataclass(slots=True, frozen=True)
 class LiteralStr(Atom):
     "See PDF32000-1:2008 (7.3.4.2)"
+
     value: bytes
 
     # FUTURE: support UTF-16BOM, but in a way that makes it explicit that
