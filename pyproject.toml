@@ -36,7 +36,7 @@ pytest-benchmark = ">=4,<6"
 hypothesis = "^6.68.2"
 
 [tool.poetry.group.typecheck.dependencies]
-mypy = "^1.6"
+mypy = ">=1.6,<3.0"
 
 [tool.poetry.group.linting.dependencies]
 black = "^24"
