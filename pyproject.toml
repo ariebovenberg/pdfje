@@ -42,7 +42,7 @@ mypy = "^2.1"
 black = "^26.3"
 flake8 = ">=6,<8"
 isort = ">=5.7,<9.0"
-slotscheck = ">=0.17,<0.20"
+slotscheck = ">=0.17,<0.21"
 
 
 [tool.black]

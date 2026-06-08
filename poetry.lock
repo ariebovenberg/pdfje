@@ -859,14 +859,14 @@ dev = ["black", "build", "mypy", "pytest", "pytest-cov", "setuptools", "tox", "t
 
 [[package]]
 name = "slotscheck"
-version = "0.19.1"
+version = "0.20.0"
 description = "Ensure your __slots__ are working properly."
 optional = false
-python-versions = ">=3.8.1"
+python-versions = ">=3.10"
 groups = ["linting"]
 files = [
-    {file = "slotscheck-0.19.1-py3-none-any.whl", hash = "sha256:bff9926f8d6408ea21b6c6bbaa4389cea1682962e73ee4f30084b6d2b89260ee"},
-    {file = "slotscheck-0.19.1.tar.gz", hash = "sha256:6146b7747f8db335a00a66b782f86011b74b995f61746dc5b36a9e77d5326013"},
+    {file = "slotscheck-0.20.0-py3-none-any.whl", hash = "sha256:8d994ca932b651d5a93be6ed3215cb6114e433aef8ddb79e051d68c0b32eafb5"},
+    {file = "slotscheck-0.20.0.tar.gz", hash = "sha256:7069653d51578c08239fabe26cb55fa81acfd17ce72cb404e6b957874058a5bd"},
 ]
 
 [package.dependencies]
@@ -963,4 +963,4 @@ hyphens = ["pyphen"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "e1895b881f5769f970d1d69ac85ffc9d8f2af33456b42965c2c4215b5b50e6ac"
+content-hash = "0c1ab290d23be0992ae8ef556fe5ba0227f4cc0d820e771539ed7852184c45bd"
