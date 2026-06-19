@@ -278,9 +278,9 @@ class RGB(Sequence[float]):
     blue: float = 0
 
     def __post_init__(self) -> None:
-        assert (
-            self.red <= 1 and self.green <= 1 and self.blue <= 1
-        ), "RGB values too large. They should be between 0 and 1"
+        assert self.red <= 1 and self.green <= 1 and self.blue <= 1, (
+            "RGB values too large. They should be between 0 and 1"
+        )
 
     # We don't support slices -- which is technically a Sequence protocol
     # violation. But in practice this is not an issue.

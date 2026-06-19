@@ -62,13 +62,19 @@ class RenderedPage:
     stream: Streamable
 
     def to_atoms(self, i: atoms.ObjectID) -> Iterable[atoms.Object]:
-        yield i, atoms.Dictionary(
-            (b"Type", atoms.Name(b"Page")),
-            (b"Parent", atoms.Ref(OBJ_ID_PAGETREE)),
-            (b"MediaBox", atoms.Array(map(atoms.Real, [0, 0, *self.size]))),
-            (b"Contents", atoms.Ref(i + 1)),
-            (b"Resources", atoms.Ref(OBJ_ID_RESOURCES)),
-            (b"Rotate", atoms.Int(self.rotate)),
+        yield (
+            i,
+            atoms.Dictionary(
+                (b"Type", atoms.Name(b"Page")),
+                (b"Parent", atoms.Ref(OBJ_ID_PAGETREE)),
+                (
+                    b"MediaBox",
+                    atoms.Array(map(atoms.Real, [0, 0, *self.size])),
+                ),
+                (b"Contents", atoms.Ref(i + 1)),
+                (b"Resources", atoms.Ref(OBJ_ID_RESOURCES)),
+                (b"Rotate", atoms.Int(self.rotate)),
+            ),
         )
         yield i + 1, atoms.Stream(self.stream)
 

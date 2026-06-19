@@ -16,7 +16,7 @@
 .. image:: https://img.shields.io/badge/coverage-99%25-forestgreen?style=flat-square
    :target: https://github.com/ariebovenberg/pdfje
 
-.. image::  https://img.shields.io/github/actions/workflow/status/ariebovenberg/pdfje/tests.yml?branch=main&style=flat-square
+.. image::  https://img.shields.io/github/actions/workflow/status/ariebovenberg/pdfje/ci.yml?branch=main&style=flat-square
    :target: https://github.com/ariebovenberg/pdfje
 
 .. image:: https://img.shields.io/readthedocs/pdfje.svg?style=flat-square
@@ -159,7 +159,7 @@ Contributing
 
 Here are some useful tips for developing in the ``pdfje`` codebase itself:
 
-- Install dependencies with ``poetry install``.
+- Install dependencies with ``uv sync --locked --all-groups --all-extras``.
 - To write output files during tests, use ``pytest --output-path=<outpur-dir>``
 - To also run more comprehensive but 'slow' tests, use ``pytest --runslow``
 

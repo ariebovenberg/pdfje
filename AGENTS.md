@@ -7,8 +7,7 @@ A declarative, pure-Python PDF writer library. Users describe documents with imm
 ## Build, test, and lint
 
 ```bash
-poetry install                        # install all deps
-poetry install -E fonts -E hyphens    # include optional extras
+uv sync --locked --all-groups --all-extras  # install all deps
 
 pytest                                # run tests (slow tests skipped by default)
 pytest tests/test_atoms.py            # run a single test file
@@ -16,11 +15,10 @@ pytest tests/test_atoms.py::TestName  # run a single test class/function
 pytest --runslow                      # include slow tests
 pytest --output-path=output/          # write generated PDFs to a directory
 
-make fix                              # auto-format (black + isort)
-make lint                             # flake8
+make fix                              # auto-format and fix imports with Ruff
+make lint                             # Ruff linting
 make mypy                             # type checking (strict on src/, relaxed on tests/)
-
-tox                                   # full CI matrix across Python 3.8–3.12
+make test                             # run the test suite with coverage
 ```
 
 ## Architecture
@@ -51,8 +49,8 @@ tox                                   # full CI matrix across Python 3.8–3.12
 
 ## Conventions
 
-- Every Python file starts with `from __future__ import annotations` (enforced by isort `add_imports`).
-- Line length is 79 characters (black + isort).
+- Every Python file starts with `from __future__ import annotations` (handled by Ruff's import sorting).
+- Line length is 79 characters (Ruff format + lint).
 - Source layout: `src/pdfje/` (library), `tests/` (mirrors source structure), `examples/`.
 - `src/pdfje/vendor/` contains vendored third-party code — excluded from type checking, linting, and slotscheck.
 - Type checking is strict (`--strict`) on `src/` and `examples/`, relaxed on `tests/`.

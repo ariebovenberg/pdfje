@@ -21,7 +21,6 @@ _SHRINK_RATIO = 1 / 3
 
 
 class Parameters(Protocol):
-
     @property
     def tolerance(self) -> float: ...
 
@@ -112,37 +111,43 @@ def _to_boxes(
         for chunk in word.boxes[:-1]:
             with_hyphen = chunk.with_hyphen()
             width_new = width + chunk.width
-            yield Fragment(
-                chunk,
-                with_hyphen,
-                NO_OP,
-            ), Box(
-                width_new,
-                stretch,
-                shrink,
-                width_new,
-                width + with_hyphen.width,
-                hyphenated=True,
-                no_break=False,
+            yield (
+                Fragment(
+                    chunk,
+                    with_hyphen,
+                    NO_OP,
+                ),
+                Box(
+                    width_new,
+                    stretch,
+                    shrink,
+                    width_new,
+                    width + with_hyphen.width,
+                    hyphenated=True,
+                    no_break=False,
+                ),
             )
             width = width_new
 
         if word.tail:
             syllables = word.boxes[-1:]
             width += syllables[0].width if syllables else 0
-            yield Fragment(
-                Word(syllables, word.tail, word.state),
-                syllables[0] if syllables else None,
-                cmd,
-            ), Box(
-                width,
-                stretch,
-                shrink,
-                # FUTURE: account for initial kern of the next word
-                width_new := width + word.tail.width(),
-                width,
-                hyphenated=False,
-                no_break=False,
+            yield (
+                Fragment(
+                    Word(syllables, word.tail, word.state),
+                    syllables[0] if syllables else None,
+                    cmd,
+                ),
+                Box(
+                    width,
+                    stretch,
+                    shrink,
+                    # FUTURE: account for initial kern of the next word
+                    width_new := width + word.tail.width(),
+                    width,
+                    hyphenated=False,
+                    no_break=False,
+                ),
             )
             # FUTURE: prevent running this every loop
             if justify:
@@ -152,14 +157,17 @@ def _to_boxes(
         else:  # a break made possible by non-space (e.g. a hyphen, or a dash)
             ending = word.boxes[-1]
             width += ending.width
-            yield Fragment(ending, ending, cmd), Box(
-                width,
-                stretch,
-                shrink,
-                width,
-                width,
-                hyphenated=ending.last() in "-\N{EM DASH}",
-                no_break=False,
+            yield (
+                Fragment(ending, ending, cmd),
+                Box(
+                    width,
+                    stretch,
+                    shrink,
+                    width,
+                    width,
+                    hyphenated=ending.last() in "-\N{EM DASH}",
+                    no_break=False,
+                ),
             )
 
 
