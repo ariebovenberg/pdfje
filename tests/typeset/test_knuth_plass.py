@@ -406,7 +406,9 @@ her favorite plaything.""",
         lines = _into_lines(breaks, words)
         # printlines(lines)
         # visualize("example-ragged-sqrt.pdf", lines, 25, 12)
-        assert "\n".join(ln for ln, _ in lines) == """\
+        assert (
+            "\n".join(ln for ln, _ in lines)
+            == """\
 In olden times when wishing still helped one, there lived a
 king whose daughters were all beautiful, but the youngest was
 so beautiful that the sun itself, which has seen so much, was
@@ -417,6 +419,7 @@ king’s child went out into the forest and sat down by the
 side of the cool fountain, and when she was bored she took
 a golden ball, and threw it up on high and caught it, and this
 ball was her favorite plaything."""
+        )
 
     # FUTURE: enable ragged test case. It currently fails.
     #         Not a high prio bug, since this is a rare edge case in practice.
@@ -456,7 +459,7 @@ def printlines(ls: Sequence[tuple[str, Break]]) -> None:
     """Print lines with their break information, for debugging."""
     maxlen = max(len(ln) for ln, _ in ls)
     for ln, brk in ls:
-        print(f"{ln: <{maxlen+4}} ({brk.adjust:+.3f}) [{brk.demerits:,.0f}]")
+        print(f"{ln: <{maxlen + 4}} ({brk.adjust:+.3f}) [{brk.demerits:,.0f}]")
 
 
 def visualize(
