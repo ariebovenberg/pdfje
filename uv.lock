@@ -1068,11 +1068,11 @@ wheels = [
 
 [[package]]
 name = "pyphen"
-version = "0.17.2"
+version = "0.18.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/69/56/e4d7e1bd70d997713649c5ce530b2d15a5fc2245a74ca820fc2d51d89d4d/pyphen-0.17.2.tar.gz", hash = "sha256:f60647a9c9b30ec6c59910097af82bc5dd2d36576b918e44148d8b07ef3b4aa3", size = 2079470, upload-time = "2025-01-20T13:18:36.296Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ad/fb/dac486dca9e6a82437596614073e7236aed0e73a4b7913ccdefd325b236b/pyphen-0.18.0.tar.gz", hash = "sha256:bc8718e50d80c1bfb4d38a476fc708a6b5bf904549db130f06ca20376971393e", size = 2110506, upload-time = "2026-08-13T11:57:06.995Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7b/1f/c2142d2edf833a90728e5cdeb10bdbdc094dde8dbac078cee0cf33f5e11b/pyphen-0.17.2-py3-none-any.whl", hash = "sha256:3a07fb017cb2341e1d9ff31b8634efb1ae4dc4b130468c7c39dd3d32e7c3affd", size = 2079358, upload-time = "2025-01-20T13:18:29.629Z" },
+    { url = "https://files.pythonhosted.org/packages/44/3d/fd5b56a0e27e81fe884bbf3361fb69ce8d47f55de09f73dcd388926f1cab/pyphen-0.18.0-py3-none-any.whl", hash = "sha256:92d96000b81b58d9388a63604000d3787f3f7dc5174deb2a58c528b77db3a720", size = 2116143, upload-time = "2026-08-13T11:57:04.756Z" },
 ]
 
 [[package]]
