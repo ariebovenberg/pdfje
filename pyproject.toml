@@ -35,7 +35,7 @@ typecheck = [
     "mypy>=2.1,<3"
 ]
 linting = [
-    "slotscheck>=0.17,<0.21",
+    "slotscheck>=0.17,<0.22",
     "ruff>=0.15,<0.17",
 ]
 docs = [
