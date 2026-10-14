@@ -36,7 +36,7 @@ typecheck = [
 ]
 linting = [
     "slotscheck>=0.17,<0.22",
-    "ruff>=0.15,<0.17",
+    "ruff>=0.15,<0.18",
 ]
 docs = [
     "sphinx>=9.1,<10",
